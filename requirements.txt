@@ -2,3 +2,4 @@ trafilatura
 requests
 pandas
 pathlib
+sentence-transformers
