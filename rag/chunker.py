@@ -1,14 +1,18 @@
 from data.dataset import load_dataset
 
+
 chunk_size = 500
 overlap = 50
 
 
 def chunk_text(text):
+
     chunks = []
+
     start = 0
 
     while start < len(text):
+
         end = start + chunk_size
 
         chunk = text[start:end]
@@ -22,25 +26,24 @@ def chunk_text(text):
 
 
 def create_chunks():
-    df = load_dataset()
-    documents = []
 
-    for _, row in df.iterrows():
-        chunks = chunk_text(row["content"])
+    text = load_dataset()
 
-        for chunk in chunks:
-            documents.append(chunk)
+    chunks = chunk_text(text)
 
-    return documents
+    return chunks
 
 
 if __name__ == "__main__":
+
     chunks = create_chunks()
 
     print(f"Total chunks created: {len(chunks)}")
 
-    print("\nFirst  chunk:")
-    print(chunks[1])
-    print("*****************")
+    print("\nFirst chunk:")
+    print(chunks[0])
+
+    print("\n*****************")
+
     print("\nSecond chunk:")
-    print(chunks[2])
+    print(chunks[1])

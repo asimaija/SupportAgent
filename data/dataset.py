@@ -1,17 +1,23 @@
-import pandas as pd
+# dataset.py
 
+dataset_path = r"D:\Projects\SupportAgent\dataset\appinsnap.txt"
 
-
-dataset_path = r"D:\Projects\SupportAgent\dataset\appinsnap.csv"
 
 def load_dataset():
-    df = pd.read_csv(dataset_path)
-    return df
+
+    with open(dataset_path, "r", encoding="utf-8") as file:
+        text = file.read()
+
+    return text
 
 
 if __name__ == "__main__":
-    df = load_dataset()
-    print("Dataset Loaded sucessfully!")
-    print("Total Records :" , len(df))
-    
-    
+
+    text = load_dataset()
+
+    print("Dataset Loaded Successfully!")
+    print("Total Characters:", len(text))
+    print("Total Words:", len(text.split()))
+
+    print("\nDataset Preview:")
+    print(text[:9000])
