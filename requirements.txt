@@ -1,0 +1,4 @@
+trafilatura
+requests
+pandas
+pathlib
