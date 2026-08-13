@@ -5,3 +5,6 @@ pathlib
 sentence-transformers
 flask
 ollama
+chromadb
+streamlit
+qdrant-client

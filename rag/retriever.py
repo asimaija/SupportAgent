@@ -1,48 +1,37 @@
-import numpy as np
 from sentence_transformers import SentenceTransformer
-from rag.vector_store import load_vector_store
-
-model = SentenceTransformer("all-MiniLM-L6-v2")
+from rag.vector_store import client, COLLECTION_NAME
 
 
-def retrieve(query, top_k=3, threshold=0.45):
+model = SentenceTransformer(
+    "all-MiniLM-L6-v2"
+)
 
-    chunks, embeddings = load_vector_store()
 
-    # Normalize document embeddings
-    embeddings = embeddings / np.linalg.norm(
-        embeddings,
-        axis=1,
-        keepdims=True
+def retrieve(query, top_k=5, threshold=0.45):
+
+    # Convert question into embedding
+    query_embedding = model.encode(
+        query,
+        normalize_embeddings=True
     )
 
-    # Encode question
-    query_embedding = model.encode(query).flatten()
-
-    query_embedding = query_embedding / np.linalg.norm(
-        query_embedding
+    # Search Qdrant
+    result = client.query_points(
+        collection_name=COLLECTION_NAME,
+        query=query_embedding.tolist(),
+        limit=top_k
     )
-
-    # Calculate similarity
-    scores = np.dot(
-        embeddings,
-        query_embedding
-    )
-
-    # Best results
-    top_indices = np.argsort(scores)[-top_k:][::-1]
 
     results = []
 
-    for index in top_indices:
+    for point in result.points:
 
-        score = scores[index]
+        score = point.score
 
-        # Ignore unrelated questions
         if score >= threshold:
 
             results.append({
-                "chunks": chunks[index],
+                "chunks": point.payload["text"],
                 "score": float(score)
             })
 
@@ -59,10 +48,17 @@ if __name__ == "__main__":
     print("================")
 
     if not results:
-        print("No relevant AppInSnap information found.")
+
+        print(
+            "No relevant AppInSnap information found."
+        )
 
     for result in results:
 
-        print(f"\nScore: {result['score']:.4f}")
+        print(
+            f"\nScore: {result['score']:.4f}"
+        )
+
         print(result["chunks"])
+
         print("\n----------------")
