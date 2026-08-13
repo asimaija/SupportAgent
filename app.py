@@ -5,13 +5,13 @@ from agents.support_agent import answer_question
 
 st.set_page_config(
     page_title="AppInSnap Support",
-    page_icon="🤖",
+    page_icon="⚡",
     layout="centered"
 )
 
 
 # --------------------------------
-# Load logo as base64 (for reliable inline alignment)
+# Load logo as base64
 # --------------------------------
 def load_logo_base64(path="images/logo.png"):
     try:
@@ -25,97 +25,182 @@ logo_b64 = load_logo_base64()
 
 
 # --------------------------------
-# Simple custom styling
+# Design system
+# Palette drawn from the AppInSnap mark:
+# ink #1A162A, violet #4A2FD1 -> indigo #405CEB
 # --------------------------------
 st.markdown("""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
     <style>
+        :root {
+            --ink: #1A162A;
+            --muted: #6B6580;
+            --violet: #4A2FD1;
+            --indigo: #405CEB;
+            --bg: #FAF9FC;
+            --surface: #FFFFFF;
+            --border: #EDEBF4;
+            --lavender: #F1EFFB;
+        }
+
+        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+        .stApp { background: var(--bg); }
+
         .block-container {
-            padding-top: 2.5rem;
-            max-width: 820px;
+            padding-top: 3.2rem;
+            padding-bottom: 8rem;
+            max-width: 700px;
         }
-        [data-testid="stChatMessage"] {
-            border-radius: 14px;
-            padding: 4px 2px;
-        }
+
+        /* ---- Top logo ---- */
         .header-row {
             display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 0.3rem;
+            justify-content: center;
+            margin-bottom: 1.6rem;
         }
         .header-row img {
-            height: 40px;
-            width: auto;
-        }
-        .subtitle {
-            color: #6b7280;
-            font-size: 0.95rem;
-            margin-bottom: 1.8rem;
-        }
-        .panel {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            padding: 1.3rem 1.4rem;
-            height: 100%;
-        }
-        .panel h4 {
-            margin-top: 0;
-            margin-bottom: 0.6rem;
-            font-size: 1rem;
-            color: #111827;
-        }
-        .panel p {
-            color: #4b5563;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-        [data-testid="stSidebar"] .sidebar-logo {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-        [data-testid="stSidebar"] .sidebar-logo img {
             height: 34px;
             width: auto;
+        }
+
+        /* ---- Sidebar ---- */
+        [data-testid="stSidebar"] {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+        }
+        [data-testid="stSidebar"] .block-container {
+            padding-top: 2rem;
+        }
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1.6rem;
+        }
+        .sidebar-logo img {
+            height: 22px;
+            width: auto;
+        }
+        .sidebar-label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0.4rem 0 0.7rem 0;
+        }
+        [data-testid="stSidebar"] div[data-testid="stButton"] > button {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--ink);
+            font-weight: 500;
+            font-size: 0.86rem;
+            text-align: left;
+            padding: 0.55rem 0.85rem;
+            white-space: normal;
+            line-height: 1.3;
+        }
+        [data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
+            border-color: var(--violet);
+            background: var(--lavender);
+            color: var(--violet);
+        }
+
+        /* ---- Empty-state greeting ---- */
+        .greeting-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding-top: 3rem;
+            padding-bottom: 1rem;
+        }
+        .greeting-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--violet), var(--indigo));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 1.2rem;
+        }
+        .greeting-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.9rem;
+            font-weight: 600;
+            color: var(--ink);
+            margin-bottom: 0.5rem;
+        }
+        .greeting-sub {
+            color: var(--muted);
+            font-size: 0.98rem;
+        }
+
+        /* ---- Chat messages: user bubble right, assistant plain left ---- */
+        [data-testid="stChatMessage"] {
+            background: transparent !important;
+            border: none !important;
+            padding: 0.3rem 0 !important;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+            flex-direction: row-reverse;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {
+            background: var(--lavender);
+            border-radius: 16px;
+            padding: 0.6rem 1rem;
+            max-width: 78%;
+            margin-left: auto;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageAvatarUser"] {
+            display: none;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageAvatarAssistant"] {
+            background: linear-gradient(135deg, var(--violet), var(--indigo)) !important;
+            width: 28px;
+            height: 28px;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
+            color: var(--ink);
+            padding-top: 0.15rem;
+        }
+
+        /* ---- Chat input: pill, docked bottom ---- */
+        [data-testid="stChatInput"] {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        [data-testid="stChatInput"] > div {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 26px;
+            box-shadow: 0 2px 10px rgba(26, 22, 42, 0.05);
+        }
+        [data-testid="stChatInput"] textarea {
+            font-family: 'Inter', sans-serif;
         }
     </style>
 """, unsafe_allow_html=True)
 
 
 # --------------------------------
-# Header
+# Top logo (above sidebar + main area)
 # --------------------------------
 if logo_b64:
     st.markdown(
         f'<div class="header-row"><img src="data:image/png;base64,{logo_b64}" /></div>',
         unsafe_allow_html=True
     )
-else:
-    st.markdown('<div class="header-row"><b>AppInSnap Support</b></div>', unsafe_allow_html=True)
-
-st.markdown(
-    '<div class="subtitle">Ask anything about AppInSnap — I\'ll do my best to help.</div>',
-    unsafe_allow_html=True
-)
 
 
 # --------------------------------
-# Sidebar (kept minimal: logo + clear chat)
-# --------------------------------
-with st.sidebar:
-    if logo_b64:
-        st.markdown(
-            f'<div class="sidebar-logo"><img src="data:image/png;base64,{logo_b64}" /></div>',
-            unsafe_allow_html=True
-        )
-    if st.button("🗑️ Clear chat", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-
-
-# --------------------------------
-# Chat history state
+# Chat state
 # --------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -130,38 +215,50 @@ example_questions = [
 ]
 
 # --------------------------------
-# Welcome layout (only before first message) — fills empty space
+# Sidebar: questions on top, clear chat below
 # --------------------------------
-if not st.session_state.messages:
-
-    left_col, right_col = st.columns(2, gap="medium")
-
-    with left_col:
-        for q in example_questions:
-            if st.button(q, use_container_width=True):
-                pending_question = q
-
-    with right_col:
+with st.sidebar:
+    if logo_b64:
         st.markdown(
-            '''
-            <div class="panel">
-                <h4>ℹ️ About</h4>
-                <p>This assistant answers questions using AppInSnap's
-                knowledge base. If it doesn't know something, it'll
-                say so rather than guess.</p>
-            </div>
-            ''',
+            f'<div class="sidebar-logo"><img src="data:image/png;base64,{logo_b64}" /></div>',
             unsafe_allow_html=True
         )
 
-    st.write("")
+    st.markdown('<div class="sidebar-label">Try asking</div>', unsafe_allow_html=True)
+
+    for q in example_questions:
+        if st.button(q, use_container_width=True):
+            pending_question = q
+
+    st.markdown("<div style='height: 0.9rem'></div>", unsafe_allow_html=True)
+
+    if st.button("🗑️ Clear chat", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+
+# --------------------------------
+# Main area (right side): greeting + chat
+# --------------------------------
+if not st.session_state.messages:
+    st.markdown(
+        '''
+        <div class="greeting-wrap">
+            <div class="greeting-icon">⚡</div>
+            <div class="greeting-title">How can I help?</div>
+            <div class="greeting-sub">Ask anything about AppInSnap</div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
 
 
 # --------------------------------
 # Render chat history
 # --------------------------------
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
+    avatar = "⚡" if message["role"] == "assistant" else "🙂"
+    with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
 
@@ -178,10 +275,10 @@ if question:
         {"role": "user", "content": question}
     )
 
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="🙂"):
         st.write(question)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="⚡"):
 
         with st.spinner("Thinking..."):
 
