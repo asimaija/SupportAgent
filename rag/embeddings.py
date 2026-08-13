@@ -1,42 +1,32 @@
-from rag.chunker import create_chunks
 from sentence_transformers import SentenceTransformer
 
+from rag.chunker import create_chunks
 
-model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def create_embeddings():
+    """
+    Build sentence-transformer embeddings for every chunk.
 
+    Returns:
+        texts: list[str]        - the chunk text, in the same order as embeddings
+        embeddings: np.ndarray  - shape (num_chunks, embedding_dim)
+    """
     chunks = create_chunks()
 
+    texts = [chunk["text"] for chunk in chunks]
+
     embeddings = model.encode(
-        chunks,
+        texts,
+        normalize_embeddings=True,
         show_progress_bar=True,
-        normalize_embeddings=True
     )
 
-    return chunks, embeddings
+    return texts, embeddings
 
 
 if __name__ == "__main__":
-
-    chunks, embeddings = create_embeddings()
-
-    print(
-        "Embeddings created successfully!"
-    )
-
-    print(
-        "Total chunks:",
-        len(chunks)
-    )
-
-    print(
-        "Embedding shape:",
-        embeddings.shape
-    )
-
-    print("\nFirst chunk:")
-    print(chunks[0])
+    texts, embeddings = create_embeddings()
+    print(f"Created {len(texts)} embeddings of dimension {embeddings.shape[1]}")

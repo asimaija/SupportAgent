@@ -8,3 +8,4 @@ ollama
 chromadb
 streamlit
 qdrant-client
+torchvision
