@@ -70,10 +70,7 @@ def answer_question(question):
         result["chunks"] for result in results
     )
 
-    # --------------------------------
-    # Ask the local LLM (Ollama) to
-    # generate a grounded answer
-    # --------------------------------
+   
 
     try:
         answer = generate_with_ollama(question, context)

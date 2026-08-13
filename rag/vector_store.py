@@ -1,3 +1,5 @@
+import atexit
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
@@ -10,6 +12,10 @@ COLLECTION_NAME = "appinsnap"
 client = QdrantClient(
     path="./qdrant_db"
 )
+
+# Ensure the client is closed cleanly before interpreter shutdown,
+# so QdrantClient.__del__ has nothing left to clean up
+atexit.register(client.close)
 
 
 def create_vector_store():
