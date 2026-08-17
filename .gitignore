@@ -1,8 +1,22 @@
 env/
 venv/
 .venv/
+
 __pycache__/
 *.pyc
+
 .env
 .vscode/
+
 *.npy
+
+# Firebase secret
+firebase_config.json
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# Qdrant local database
+qdrant_db/

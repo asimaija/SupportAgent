@@ -1,40 +1,28 @@
-import re
 import requests
 
 from rag.retriever import retrieve
-
-from data.complaints import get_complaint_status
 
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:0.5b"
 
 
-SYSTEM_PROMPT = """
-You are a helpful support assistant for AppInSnap.
-
-Answer using ONLY the provided context.
-
-If the answer is not in the context, say:
-Sorry, I don't have that information about AppInSnap.
-
-Keep answers short and clear.
-"""
+SYSTEM_PROMPT = (
+    "You are a helpful support assistant for AppInSnap. "
+    "Answer the user's question using ONLY the context provided below. "
+    "If the context does not contain the answer, say you don't have "
+    "that information about AppInSnap. Keep answers concise and clear."
+)
 
 
-def generate_answer(question, context):
+def generate_with_ollama(question, context):
 
-    prompt = f"""
-{SYSTEM_PROMPT}
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer:
-"""
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question: {question}\n\n"
+        f"Answer:"
+    )
 
     response = requests.post(
         OLLAMA_URL,
@@ -48,53 +36,14 @@ Answer:
 
     response.raise_for_status()
 
-    return response.json()["response"].strip()
-
-
-def get_status(question):
-
-    match = re.search(
-        r"CMP-\d+",
-        question.upper()
-    )
-
-    if not match:
-        return None
-
-    complaint_id = match.group()
-
-    result = get_complaint_status(
-        complaint_id
-    )
-
-    if not result:
-
-        return (
-            f"Complaint {complaint_id} "
-            "was not found."
-        )
-
-    return (
-        f"Complaint ID: {result[0]}\n\n"
-        f"Name: {result[1]}\n"
-        f"Complaint: {result[2]}\n"
-        f"Status: {result[3]}\n"
-        f"Created: {result[4]}"
-    )
+    return response.json().get(
+        "response",
+        ""
+    ).strip()
 
 
 def answer_question(question):
 
-    # Check complaint status first
-    if "cmp-" in question.lower():
-
-        status = get_status(question)
-
-        if status:
-            return status
-
-
-    # Normal RAG
     results = retrieve(
         question,
         top_k=3,
@@ -108,16 +57,14 @@ def answer_question(question):
             "about AppInSnap."
         )
 
-
     context = "\n\n".join(
         result["chunks"]
         for result in results
     )
 
-
     try:
 
-        return generate_answer(
+        answer = generate_with_ollama(
             question,
             context
         )
@@ -125,21 +72,19 @@ def answer_question(question):
     except requests.exceptions.ConnectionError:
 
         return (
-            "⚠️ Ollama is not running. "
-            "Please run: ollama serve"
+            "Could not connect to Ollama. "
+            "Please make sure Ollama is running."
         )
 
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
 
-        return f"⚠️ Error: {e}"
+        return f"Error generating answer: {e}"
 
+    if not answer:
 
-if __name__ == "__main__":
+        return (
+            "Sorry, I don't have that information "
+            "about AppInSnap."
+        )
 
-    question = input(
-        "Ask your question: "
-    )
-
-    print(
-        answer_question(question)
-    )
+    return answer

@@ -1,209 +1,160 @@
 import streamlit as st
-
 from agents.support_agent import answer_question
-from data.complaints import register_complaint
-
-
-st.set_page_config(
-    page_title="AppInSnap Support",
-    page_icon="⚡",
-    layout="centered"
+from data.complaints import (
+    register_complaint,
+    get_complaint,
+    update_complaint_status
 )
 
+st.set_page_config(page_title="AppInSnap Support", page_icon="⚡")
 
-# -----------------------------
 # Simple design
-# -----------------------------
+st.markdown("""
+<style>
+.block-container {max-width:850px;padding-top:25px}
+.logo {text-align:right}
+</style>
+""", unsafe_allow_html=True)
 
-st.markdown(
-    """
-    <style>
+# Header
+col1, col2 = st.columns([4, 1])
 
-    .stApp {
-        background-color: #f8f7fc;
-    }
+with col1:
+    st.title("AppInSnap Support")
 
-    .title {
-        text-align: center;
-        font-size: 28px;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
+with col2:
+    st.image("images/logo.png", width=110)
 
-    .subtitle {
-        text-align: center;
-        color: #777;
-        margin-bottom: 30px;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# -----------------------------
-# Logo
-# -----------------------------
-
-st.image(
-    "images/logo.png",
-    width=160
-)
-
-
-st.markdown(
-    '<div class="title">Support</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="subtitle">We are here to help you</div>',
-    unsafe_allow_html=True
-)
-
-
-# -----------------------------
-# Session state
-# -----------------------------
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-
-# -----------------------------
 # Sidebar
-# -----------------------------
-
 with st.sidebar:
-
-    st.image(
-        "images/logo.png",
-        width=130
-    )
-
-    st.divider()
-
+    st.image("images/logo.png", width=130)
     page = st.radio(
-        "Choose an option",
-        [
-            "Chat Support",
-            "Register Complaint"
-        ]
+        "Menu",
+        ["Chat Support", "Register Complaint",
+         "Check Status", "Manage Complaint"]
     )
 
 
-# =============================
-# CHAT SUPPORT
-# =============================
+# ================= CHAT =================
 
 if page == "Chat Support":
 
-    for message in st.session_state.messages:
+    st.header("Chat Support")
 
-        with st.chat_message(
-            message["role"]
-        ):
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-            st.write(
-                message["content"]
-            )
+    for m in st.session_state.messages:
+        with st.chat_message(m["role"]):
+            st.write(m["content"])
 
+    q = st.chat_input("Type your question...")
 
-    question = st.chat_input(
-        "Type your question..."
-    )
-
-
-    if question:
-
-        st.session_state.messages.append({
-            "role": "user",
-            "content": question
-        })
-
+    if q:
+        st.session_state.messages.append({"role": "user", "content": q})
 
         with st.chat_message("user"):
-            st.write(question)
+            st.write(q)
 
+        answer = answer_question(q)
 
         with st.chat_message("assistant"):
-
-            with st.spinner("Thinking..."):
-
-                answer = answer_question(
-                    question
-                )
-
             st.write(answer)
 
-
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer
-        })
-
-        st.rerun()
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer}
+        )
 
 
-# =============================
-# REGISTER COMPLAINT
-# =============================
+# ================= REGISTER =================
+
+elif page == "Register Complaint":
+
+    st.header("Register Complaint")
+
+    with st.form("complaint"):
+
+        name = st.text_input("Name")
+        text = st.text_area("Complaint")
+
+        submit = st.form_submit_button("Submit")
+
+    if submit:
+
+        if not name or not text:
+            st.error("Please fill all fields.")
+
+        else:
+            cid = register_complaint(name, text)
+
+            st.success("Complaint registered successfully!")
+            st.info(f"Complaint ID: {cid}\n\nStatus: Pending")
+
+
+# ================= CHECK STATUS =================
+
+elif page == "Check Status":
+
+    st.header("Check Complaint Status")
+
+    cid = st.text_input("Complaint ID")
+
+    if st.button("Check"):
+
+        c = get_complaint(cid.strip().upper())
+
+        if c:
+            st.write(f"**ID:** {c.get('complaint_id', cid)}")
+            st.write(f"**Name:** {c.get('name', '')}")
+            st.write(f"**Complaint:** {c.get('complaint', '')}")
+            st.success(f"Status: {c.get('status', 'Pending')}")
+        else:
+            st.error("Complaint not found.")
+
+
+# ================= MANAGE =================
 
 else:
 
-    st.subheader("Register Complaint")
+    st.header("Manage Complaint")
 
-    st.write(
-        "Please provide the details of your complaint."
-    )
+    cid = st.text_input("Complaint ID")
 
+    if st.button("Find"):
 
-    with st.form("complaint_form"):
+        c = get_complaint(cid.strip().upper())
 
-        name = st.text_input(
-            "Name"
+        if c:
+            st.session_state.complaint = c
+        else:
+            st.session_state.complaint = None
+            st.error("Complaint not found.")
+
+    c = st.session_state.get("complaint")
+
+    if c:
+
+        st.write(f"**ID:** {c.get('complaint_id', cid)}")
+        st.write(f"**Name:** {c.get('name', '')}")
+        st.write(f"**Complaint:** {c.get('complaint', '')}")
+        st.write(f"**Current:** {c.get('status', 'Pending')}")
+
+        status = st.selectbox(
+            "New Status",
+            ["Pending", "In Progress", "Resolved"]
         )
 
-        complaint = st.text_area(
-            "Complaint",
-            placeholder="Write your complaint here..."
-        )
+        if st.button("Update"):
 
+            complaint_id = c.get("complaint_id", cid.upper())
 
-        submit = st.form_submit_button(
-            "Submit Complaint"
-        )
+            update_complaint_status(
+                complaint_id,
+                status
+            )
 
+            st.session_state.complaint = get_complaint(
+                complaint_id
+            )
 
-        if submit:
-
-            if not name.strip():
-
-                st.error(
-                    "Please enter your name."
-                )
-
-            elif not complaint.strip():
-
-                st.error(
-                    "Please enter your complaint."
-                )
-
-            else:
-
-                complaint_id = register_complaint(
-                    name.strip(),
-                    complaint.strip()
-                )
-
-
-                st.success(
-                    "Complaint registered successfully!"
-                )
-
-
-                st.info(
-                    f"Complaint ID: {complaint_id}\n\n"
-                    "Status: Pending"
-                )
+            st.success(f"Updated: {status}")
