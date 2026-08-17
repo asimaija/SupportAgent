@@ -1,36 +1,15 @@
 dataset_path = r"D:\Projects\SupportAgent\dataset\appinsnap.txt"
 
-
 def load_dataset():
-
-    with open(
-        dataset_path,
-        "r",
-        encoding="utf-8"
-    ) as file:
-
-        text = file.read()
-
-    return text
+    with open(dataset_path, "r", encoding="utf-8") as file:
+        return file.read()
 
 
-if __name__ == "__main__":
+text = load_dataset()
 
-    text = load_dataset()
+print("Dataset Loaded Successfully!")
+print("Characters:", len(text))
+print("Words:", len(text.split()))
 
-    print(
-        "Dataset Loaded Successfully!"
-    )
-
-    print(
-        "Total Characters:",
-        len(text)
-    )
-
-    print(
-        "Total Words:",
-        len(text.split())
-    )
-
-    print("\nDataset Preview:")
-    print(text[:9000])
+print("\nPreview:")
+print(text[:1000])
