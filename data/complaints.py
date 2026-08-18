@@ -3,9 +3,21 @@ from datetime import datetime
 import uuid
 
 
-def register_complaint(name, complaint):
+# =========================================================
+# REGISTER COMPLAINT
+# =========================================================
 
-    complaint_id = "CMP-" + str(uuid.uuid4())[:8].upper()
+def register_complaint(
+    name,
+    complaint,
+    email=None,
+    user_id=None
+):
+
+    complaint_id = (
+        "CMP-" +
+        str(uuid.uuid4())[:8].upper()
+    )
 
     data = {
         "complaint_id": complaint_id,
@@ -15,36 +27,135 @@ def register_complaint(name, complaint):
         "created_at": datetime.now().isoformat()
     }
 
-    db.collection("complaints").document(complaint_id).set(data)
+    if email:
+
+        data["email"] = email
+
+    if user_id:
+
+        data["user_id"] = user_id
+
+    db.collection(
+        "complaints"
+    ).document(
+        complaint_id
+    ).set(data)
 
     return complaint_id
 
 
-def get_complaint(complaint_id):
+# =========================================================
+# GET COMPLAINT
+# =========================================================
 
-    doc = db.collection("complaints").document(complaint_id).get()
+def get_complaint(
+    complaint_id
+):
+
+    complaint_id = complaint_id.strip().upper()
+
+    # Try document ID
+    doc = (
+        db.collection("complaints")
+        .document(complaint_id)
+        .get()
+    )
 
     if doc.exists:
-        return doc.to_dict()
+
+        data = doc.to_dict()
+
+        data["complaint_id"] = data.get(
+            "complaint_id",
+            complaint_id
+        )
+
+        return data
+
+    # Fallback search
+    results = (
+        db.collection("complaints")
+        .where(
+            "complaint_id",
+            "==",
+            complaint_id
+        )
+        .limit(1)
+        .stream()
+    )
+
+    for document in results:
+
+        data = document.to_dict()
+
+        data["complaint_id"] = data.get(
+            "complaint_id",
+            complaint_id
+        )
+
+        return data
 
     return None
 
 
-def get_all_complaints():
+# =========================================================
+# GET CUSTOMER COMPLAINTS
+# =========================================================
+
+def get_customer_complaints(
+    user_id
+):
 
     complaints = []
 
-    for doc in db.collection("complaints").stream():
+    docs = (
+        db.collection("complaints")
+        .where(
+            "user_id",
+            "==",
+            user_id
+        )
+        .stream()
+    )
+
+    for doc in docs:
 
         data = doc.to_dict()
 
-        # Use document ID if complaint_id field is missing
         data["complaint_id"] = data.get(
             "complaint_id",
             doc.id
         )
 
-        # Default status
+        complaints.append(data)
+
+    return complaints
+
+
+# =========================================================
+# GET ALL COMPLAINTS
+# =========================================================
+
+def get_all_complaints():
+
+    complaints = []
+
+    docs = (
+        db.collection("complaints")
+        .stream()
+    )
+
+    for doc in docs:
+
+        data = doc.to_dict()
+
+        data["document_id"] = doc.id
+
+        data["complaint_id"] = data.get(
+            "complaint_id",
+            doc.id
+        )
+
         data["status"] = data.get(
             "status",
             "Pending"
@@ -55,10 +166,53 @@ def get_all_complaints():
     return complaints
 
 
-def update_complaint_status(complaint_id, status):
+# =========================================================
+# UPDATE STATUS
+# =========================================================
 
-    db.collection("complaints").document(
-        complaint_id
-    ).update({
-        "status": status
-    })
+def update_complaint_status(
+    complaint_id,
+    new_status
+):
+
+    complaint_id = complaint_id.strip().upper()
+
+    # Try document ID
+    doc_ref = (
+        db.collection("complaints")
+        .document(complaint_id)
+    )
+
+    doc = doc_ref.get()
+
+    if doc.exists:
+
+        doc_ref.update({
+            "status": new_status,
+            "updated_at": datetime.now().isoformat()
+        })
+
+        return True
+
+    # Fallback search
+    results = (
+        db.collection("complaints")
+        .where(
+            "complaint_id",
+            "==",
+            complaint_id
+        )
+        .limit(1)
+        .stream()
+    )
+
+    for document in results:
+
+        document.reference.update({
+            "status": new_status,
+            "updated_at": datetime.now().isoformat()
+        })
+
+        return True
+
+    return False
