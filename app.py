@@ -42,16 +42,8 @@ st.markdown(
 # HEADER
 # =========================================================
 
-col1, col2 = st.columns([4, 1])
-
-with col1:
-    st.title("AppInSnap Support")
-
-with col2:
-    st.image(
-        "images/logo.png",
-        width=110
-    )
+# Top-right logo removed
+st.title("AppInSnap Support")
 
 
 # =========================================================
