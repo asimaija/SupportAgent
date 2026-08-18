@@ -5,7 +5,6 @@ from agents.complaint_detector import is_complaint
 
 from data.complaints import (
     register_complaint,
-    get_complaint,
     get_customer_complaints
 )
 
@@ -36,10 +35,61 @@ st.markdown(
     """
     <style>
 
+    /* -----------------------------------------------------
+       MAIN CONTAINER
+    ----------------------------------------------------- */
+
     .block-container {
         max-width: 850px;
         padding-top: 25px;
+        padding-bottom: 40px;
     }
+
+
+    /* -----------------------------------------------------
+       GENERAL TEXT
+    ----------------------------------------------------- */
+
+    body {
+        color: #000000;
+    }
+
+    p {
+        color: #000000;
+    }
+
+
+    /* -----------------------------------------------------
+       CHAT TEXT
+    ----------------------------------------------------- */
+
+    [data-testid="stChatMessage"] {
+        color: #000000 !important;
+    }
+
+    [data-testid="stChatMessage"] p {
+        color: #000000 !important;
+        line-height: 1.6;
+    }
+
+    [data-testid="stChatMessage"] li {
+        color: #000000 !important;
+        line-height: 1.6;
+    }
+
+    [data-testid="stChatMessage"] strong {
+        color: #000000 !important;
+        font-weight: 700;
+    }
+
+    [data-testid="stChatMessage"] em {
+        color: #000000 !important;
+    }
+
+
+    /* -----------------------------------------------------
+       BUTTON
+    ----------------------------------------------------- */
 
     div.stButton > button {
         background-color: #3B4CE0;
@@ -52,6 +102,39 @@ st.markdown(
     div.stButton > button:hover {
         background-color: #2E3BBE;
         color: white;
+    }
+
+
+    /* -----------------------------------------------------
+       CHAT INPUT
+    ----------------------------------------------------- */
+
+    [data-testid="stChatInput"] textarea {
+        color: #000000 !important;
+    }
+
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #777777 !important;
+    }
+
+
+    /* -----------------------------------------------------
+       STATUS COLORS
+    ----------------------------------------------------- */
+
+    .status-pending {
+        color: #A87A1D;
+        font-weight: 700;
+    }
+
+    .status-progress {
+        color: #3B4CE0;
+        font-weight: 700;
+    }
+
+    .status-resolved {
+        color: #1C8A5E;
+        font-weight: 700;
     }
 
     </style>
@@ -78,13 +161,9 @@ defaults = {
 
     "messages": [],
 
-    "waiting_for_name": False,
-
     "waiting_for_complaint": False,
 
-    "admin_logged_in": False,
-
-    "admin_complaint": None
+    "admin_logged_in": False
 }
 
 
@@ -108,6 +187,10 @@ st.title("AppInSnap Support")
 
 if not st.session_state.customer_logged_in:
 
+    # -----------------------------------------------------
+    # SIDEBAR
+    # -----------------------------------------------------
+
     st.sidebar.image(
         "images/logo.png",
         width=130
@@ -123,6 +206,7 @@ if not st.session_state.customer_logged_in:
             "Staff / Admin"
         ]
     )
+
 
     # =====================================================
     # CUSTOMER REGISTER
@@ -165,6 +249,11 @@ if not st.session_state.customer_logged_in:
                 use_container_width=True
             )
 
+
+        # -------------------------------------------------
+        # REGISTER PROCESS
+        # -------------------------------------------------
+
         if submit:
 
             if not name.strip():
@@ -199,21 +288,29 @@ if not st.session_state.customer_logged_in:
                     password
                 )
 
-                if result["success"]:
-
-                    # -------------------------------------
-                    # SAVE CUSTOMER PROFILE IN SESSION
-                    # -------------------------------------
+                if result.get("success"):
 
                     st.session_state.customer_logged_in = True
 
-                    st.session_state.customer_name = name.strip()
+                    st.session_state.customer_name = (
+                        name.strip()
+                    )
 
-                    st.session_state.customer_email = email.strip()
+                    st.session_state.customer_email = (
+                        email.strip()
+                    )
 
-                    st.session_state.customer_user_id = result["localId"]
+                    st.session_state.customer_user_id = (
+                        result.get("localId", "")
+                    )
 
-                    st.session_state.id_token = result["idToken"]
+                    st.session_state.id_token = (
+                        result.get("idToken", "")
+                    )
+
+                    st.session_state.messages = []
+
+                    st.session_state.waiting_for_complaint = False
 
                     st.success(
                         "Account created successfully!"
@@ -224,7 +321,10 @@ if not st.session_state.customer_logged_in:
                 else:
 
                     st.error(
-                        result["error"]
+                        result.get(
+                            "error",
+                            "Registration failed."
+                        )
                     )
 
 
@@ -261,6 +361,11 @@ if not st.session_state.customer_logged_in:
                 use_container_width=True
             )
 
+
+        # -------------------------------------------------
+        # LOGIN PROCESS
+        # -------------------------------------------------
+
         if login:
 
             if not email.strip() or not password:
@@ -276,27 +381,31 @@ if not st.session_state.customer_logged_in:
                     password
                 )
 
-                if result["success"]:
+                if result.get("success"):
 
                     st.session_state.customer_logged_in = True
 
                     st.session_state.customer_email = (
-                        result["email"]
+                        result.get("email", email.strip())
                     )
 
                     st.session_state.customer_user_id = (
-                        result["localId"]
+                        result.get("localId", "")
                     )
 
                     st.session_state.id_token = (
-                        result["idToken"]
+                        result.get("idToken", "")
                     )
 
-                    # Firebase Auth does not return
-                    # the profile name here.
+                    # Firebase login response doesn't
+                    # contain our profile name.
                     st.session_state.customer_name = (
                         email.split("@")[0]
                     )
+
+                    st.session_state.messages = []
+
+                    st.session_state.waiting_for_complaint = False
 
                     st.success(
                         "Login successful!"
@@ -307,7 +416,10 @@ if not st.session_state.customer_logged_in:
                 else:
 
                     st.error(
-                        result["error"]
+                        result.get(
+                            "error",
+                            "Login failed."
+                        )
                     )
 
 
@@ -345,6 +457,7 @@ if not st.session_state.customer_logged_in:
 
                 admin_password = "admin123"
 
+
             if password == admin_password:
 
                 st.session_state.admin_logged_in = True
@@ -359,7 +472,7 @@ if not st.session_state.customer_logged_in:
 
 
     # =====================================================
-    # ADMIN DASHBOARD WHILE CUSTOMER LOGGED OUT
+    # ADMIN DASHBOARD
     # =====================================================
 
     if st.session_state.admin_logged_in:
@@ -378,13 +491,13 @@ if not st.session_state.customer_logged_in:
 
 
 # =========================================================
-# CUSTOMER IS LOGGED IN
+# CUSTOMER LOGGED IN
 # =========================================================
 
 else:
 
     # =====================================================
-    # SIDEBAR
+    # CUSTOMER SIDEBAR
     # =====================================================
 
     st.sidebar.image(
@@ -409,6 +522,11 @@ else:
 
     st.sidebar.markdown("---")
 
+
+    # =====================================================
+    # LOGOUT
+    # =====================================================
+
     if st.sidebar.button(
         "Logout",
         use_container_width=True
@@ -425,8 +543,6 @@ else:
         st.session_state.id_token = ""
 
         st.session_state.messages = []
-
-        st.session_state.waiting_for_name = False
 
         st.session_state.waiting_for_complaint = False
 
@@ -447,9 +563,10 @@ else:
             "Ask anything about AppInSnap or report a problem."
         )
 
-        # -----------------------------------------------
-        # SHOW HISTORY
-        # -----------------------------------------------
+
+        # -------------------------------------------------
+        # DISPLAY CHAT HISTORY
+        # -------------------------------------------------
 
         for message in st.session_state.messages:
 
@@ -457,21 +574,28 @@ else:
                 message["role"]
             ):
 
-                st.write(
+                st.markdown(
                     message["content"]
                 )
 
-        # -----------------------------------------------
+
+        # -------------------------------------------------
         # CHAT INPUT
-        # -----------------------------------------------
+        # -------------------------------------------------
 
         question = st.chat_input(
             "Ask about AppInSnap..."
         )
 
+
         if question:
 
             question = question.strip()
+
+
+            # ---------------------------------------------
+            # SAVE USER MESSAGE
+            # ---------------------------------------------
 
             st.session_state.messages.append(
                 {
@@ -480,13 +604,17 @@ else:
                 }
             )
 
+
             with st.chat_message("user"):
 
-                st.write(question)
+                st.markdown(
+                    question
+                )
 
-            # ===========================================
-            # COMPLAINT DETAILS
-            # ===========================================
+
+            # =================================================
+            # USER IS PROVIDING COMPLAINT DETAILS
+            # =================================================
 
             if st.session_state.waiting_for_complaint:
 
@@ -498,6 +626,7 @@ else:
 
                 user_id = st.session_state.customer_user_id
 
+
                 try:
 
                     complaint_id = register_complaint(
@@ -507,15 +636,18 @@ else:
                         user_id
                     )
 
+
                     st.session_state.waiting_for_complaint = False
 
+
                     response = (
-                        "Complaint registered successfully!\n\n"
+                        "Your complaint has been registered successfully.\n\n"
                         f"**Complaint ID:** `{complaint_id}`\n\n"
                         "**Status:** Pending\n\n"
-                        "You can check your complaint status "
-                        "from the **Check Status** page."
+                        "You can check the status from the "
+                        "**Check Status** page."
                     )
+
 
                     with st.chat_message(
                         "assistant"
@@ -525,12 +657,14 @@ else:
                             response
                         )
 
+
                     st.session_state.messages.append(
                         {
                             "role": "assistant",
                             "content": response
                         }
                     )
+
 
                 except Exception as e:
 
@@ -543,30 +677,32 @@ else:
                         )
 
 
-            # ===========================================
+            # =================================================
             # NEW COMPLAINT DETECTED
-            # ===========================================
+            # =================================================
 
             elif is_complaint(question):
 
                 st.session_state.waiting_for_complaint = True
 
+
                 response = (
                     "I'm sorry you're experiencing a problem. "
                     "I can help you register a complaint.\n\n"
-                    f"Since you are logged in as "
-                    f"**{st.session_state.customer_name}**, "
-                    "I already have your name.\n\n"
-                    "**Please describe your complaint in detail.**"
+                    f"You're logged in as "
+                    f"**{st.session_state.customer_name}**.\n\n"
+                    "Please describe your complaint in detail."
                 )
+
 
                 with st.chat_message(
                     "assistant"
                 ):
 
-                    st.write(
+                    st.markdown(
                         response
                     )
+
 
                 st.session_state.messages.append(
                     {
@@ -576,9 +712,9 @@ else:
                 )
 
 
-            # ===========================================
-            # NORMAL RAG QUESTION
-            # ===========================================
+            # =================================================
+            # NORMAL AI / RAG QUESTION
+            # =================================================
 
             else:
 
@@ -594,9 +730,17 @@ else:
                             question
                         )
 
-                    st.write(
+
+                    # -----------------------------------------
+                    # IMPORTANT:
+                    # LLM controls Markdown formatting.
+                    # No hard-coded important words here.
+                    # -----------------------------------------
+
+                    st.markdown(
                         answer
                     )
+
 
                 st.session_state.messages.append(
                     {
@@ -620,6 +764,7 @@ else:
             "Your account information will be attached automatically."
         )
 
+
         st.info(
             f"Customer: {st.session_state.customer_name}"
         )
@@ -627,6 +772,7 @@ else:
         st.info(
             f"Email: {st.session_state.customer_email}"
         )
+
 
         with st.form(
             "customer_complaint"
@@ -642,6 +788,7 @@ else:
                 "Submit Complaint",
                 use_container_width=True
             )
+
 
         if submit:
 
@@ -662,9 +809,11 @@ else:
                         st.session_state.customer_user_id
                     )
 
+
                     st.success(
                         "Complaint registered successfully!"
                     )
+
 
                     st.info(
                         f"""
@@ -675,6 +824,7 @@ else:
 Please save this Complaint ID.
 """
                     )
+
 
                 except Exception as e:
 
@@ -697,6 +847,7 @@ Please save this Complaint ID.
             "Only your own complaints are shown here."
         )
 
+
         try:
 
             complaints = get_customer_complaints(
@@ -711,11 +862,13 @@ Please save this Complaint ID.
 
             complaints = []
 
+
         if not complaints:
 
             st.info(
                 "You have not registered any complaints yet."
             )
+
 
         else:
 
@@ -725,20 +878,23 @@ Please save this Complaint ID.
                     border=True
                 ):
 
-                    st.write(
+                    st.markdown(
                         f"**Complaint ID:** "
                         f"`{complaint.get('complaint_id', '')}`"
                     )
 
-                    st.write(
+
+                    st.markdown(
                         f"**Complaint:** "
                         f"{complaint.get('complaint', '')}"
                     )
+
 
                     status = complaint.get(
                         "status",
                         "Pending"
                     )
+
 
                     if status == "Resolved":
 
