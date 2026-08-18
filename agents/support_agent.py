@@ -10,6 +10,9 @@ from rag.retriever import retrieve
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:0.5b"
 
+# CPU can take some time
+OLLAMA_TIMEOUT = 180
+
 
 # =========================================================
 # SYSTEM PROMPT
@@ -19,9 +22,9 @@ SYSTEM_PROMPT = """
 You are a customer support assistant.
 
 Answer the user's question using ONLY the information provided
-in the retrieved context.
+in the context.
 
-RULES:
+Rules:
 
 1. Do not invent information.
 
@@ -29,67 +32,63 @@ RULES:
 
 3. Do not repeat the user's question.
 
-4. Answer the question directly and clearly.
+4. Give a clear and concise answer.
 
-5. Keep the answer concise and easy to understand.
+5. When the answer contains multiple points, organize them using
+   Markdown bullet points.
 
-6. If the answer contains multiple items, points, features,
-   services, steps, or explanations, use Markdown bullet points.
+6. Dynamically identify important words and phrases from the
+   context and answer.
 
-7. Automatically identify important words and phrases from the
-   actual retrieved information and answer.
+7. Make important words and phrases bold using Markdown.
 
-8. Make important words and phrases bold using Markdown:
-   **important term**
+8. Do NOT use a predefined keyword list.
 
-9. Important terms must be identified dynamically.
+9. Do NOT hard-code company names, services, features, products,
+   policies, departments, statuses, or technical terms.
 
-10. Do not use a predefined keyword list.
+10. Do not bold the entire response.
 
-11. Do not hard-code any company names, service names,
-    feature names, product names, policies, departments,
-    statuses, or technical terms.
+11. Keep normal explanatory text unbolded.
 
-12. Do not bold the entire response.
+12. Do not invent headings, categories, or information that is
+    not supported by the context.
 
-13. Keep normal explanatory text unbolded.
+13. Keep the response concise and easy to read.
 
-14. Do not invent headings, categories, services, features,
-    policies, or other information.
+14. If the context does not contain enough information to answer
+    the question, say that the information is not available.
 
-15. Only create bullets when the answer naturally contains
-    multiple points.
-
-16. Preserve the meaning of the retrieved information.
-
-17. If the retrieved information is not sufficient to answer
-    the question, clearly say that the information is not
-    available.
-
-18. Do not mention RAG, retrieval, embeddings, chunks,
+15. Do not mention retrieval, RAG, embeddings, chunks,
     vector databases, prompts, or internal processing.
 
-19. Do not repeat information unnecessarily.
+16. Use Markdown formatting naturally.
 
-20. Do not use information from your own general knowledge
-    when it is not supported by the retrieved context.
+17. If there are several services, features, policies, or items,
+    use bullet points.
+
+18. Important terms must be selected dynamically from the actual
+    information. Never use a fixed list.
 """
 
 
 # =========================================================
-# GENERATE ANSWER WITH OLLAMA
+# GENERATE ANSWER USING OLLAMA
 # =========================================================
 
 def generate_with_ollama(question, context):
 
-    prompt = (
-        f"{SYSTEM_PROMPT}\n\n"
-        f"RETRIEVED INFORMATION:\n"
-        f"{context}\n\n"
-        f"USER QUESTION:\n"
-        f"{question}\n\n"
-        f"ANSWER:"
-    )
+    prompt = f"""
+{SYSTEM_PROMPT}
+
+Context:
+{context}
+
+User question:
+{question}
+
+Answer:
+"""
 
     response = requests.post(
         OLLAMA_URL,
@@ -99,10 +98,11 @@ def generate_with_ollama(question, context):
             "stream": False,
             "options": {
                 "temperature": 0.2,
-                "top_p": 0.9
+                "top_p": 0.9,
+                "num_predict": 180
             }
         },
-        timeout=60
+        timeout=OLLAMA_TIMEOUT
     )
 
     response.raise_for_status()
@@ -116,44 +116,23 @@ def generate_with_ollama(question, context):
 
 
 # =========================================================
-# ANSWER QUESTION
+# MAIN RAG FUNCTION
 # =========================================================
 
 def answer_question(question):
 
     # -----------------------------------------------------
-    # Validate question
-    # -----------------------------------------------------
-
-    if not question or not question.strip():
-
-        return "Please enter a question."
-
-
-    question = question.strip()
-
-
-    # -----------------------------------------------------
     # Retrieve relevant information
     # -----------------------------------------------------
 
-    try:
-
-        results = retrieve(
-            question,
-            top_k=3,
-            threshold=0.35
-        )
-
-    except Exception as e:
-
-        return (
-            f"Unable to search the knowledge base: {e}"
-        )
-
+    results = retrieve(
+        question,
+        top_k=2,
+        threshold=0.35
+    )
 
     # -----------------------------------------------------
-    # No relevant results
+    # No relevant information
     # -----------------------------------------------------
 
     if not results:
@@ -163,7 +142,6 @@ def answer_question(question):
             "to answer that."
         )
 
-
     # -----------------------------------------------------
     # Build context
     # -----------------------------------------------------
@@ -172,32 +150,26 @@ def answer_question(question):
 
     for result in results:
 
-        if isinstance(result, dict):
-
-            chunks = result.get(
-                "chunks",
-                ""
-            )
-
-        else:
-
-            chunks = str(result)
-
+        chunks = result.get(
+            "chunks",
+            ""
+        )
 
         if chunks:
 
-            context_parts.append(
-                str(chunks).strip()
-            )
+            # Keep context reasonably small
+            chunks = chunks[:2500]
 
+            context_parts.append(
+                chunks
+            )
 
     context = "\n\n".join(
         context_parts
     )
 
-
     # -----------------------------------------------------
-    # Make sure context exists
+    # Empty context
     # -----------------------------------------------------
 
     if not context.strip():
@@ -206,7 +178,6 @@ def answer_question(question):
             "Sorry, I don't have enough information "
             "to answer that."
         )
-
 
     # -----------------------------------------------------
     # Generate answer
@@ -219,11 +190,6 @@ def answer_question(question):
             context
         )
 
-
-    # -----------------------------------------------------
-    # Ollama connection error
-    # -----------------------------------------------------
-
     except requests.exceptions.ConnectionError:
 
         return (
@@ -231,22 +197,12 @@ def answer_question(question):
             "Please make sure Ollama is running."
         )
 
-
-    # -----------------------------------------------------
-    # Ollama timeout
-    # -----------------------------------------------------
-
     except requests.exceptions.Timeout:
 
         return (
-            "The response took too long. "
+            "Ollama is taking too long to respond. "
             "Please try again."
         )
-
-
-    # -----------------------------------------------------
-    # Other request errors
-    # -----------------------------------------------------
 
     except requests.exceptions.RequestException as e:
 
@@ -254,20 +210,8 @@ def answer_question(question):
             f"Error generating answer: {e}"
         )
 
-
     # -----------------------------------------------------
-    # Other unexpected errors
-    # -----------------------------------------------------
-
-    except Exception as e:
-
-        return (
-            f"An unexpected error occurred: {e}"
-        )
-
-
-    # -----------------------------------------------------
-    # Empty LLM response
+    # Empty response
     # -----------------------------------------------------
 
     if not answer:
@@ -276,10 +220,5 @@ def answer_question(question):
             "Sorry, I don't have enough information "
             "to answer that."
         )
-
-
-    # -----------------------------------------------------
-    # Return final answer
-    # -----------------------------------------------------
 
     return answer
