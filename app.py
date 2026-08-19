@@ -199,7 +199,7 @@ if not st.session_state.customer_logged_in:
     st.sidebar.markdown("---")
 
     account_page = st.sidebar.radio(
-        "Customer Account",
+        "Account Menu",
         [
             "Login",
             "Register",
@@ -733,8 +733,7 @@ else:
 
                     # -----------------------------------------
                     # IMPORTANT:
-                    # LLM controls Markdown formatting.
-                    # No hard-coded important words here.
+                    
                     # -----------------------------------------
 
                     st.markdown(
