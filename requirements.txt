@@ -10,3 +10,6 @@ streamlit
 qdrant-client
 torchvision
 firebase-admin
+langchain
+langchain-ollama
+langchain-qdrant
