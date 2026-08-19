@@ -27,6 +27,7 @@ def get_api_key():
 def firebase_error(response):
 
     try:
+
         data = response.json()
 
         message = (
@@ -36,9 +37,11 @@ def firebase_error(response):
         )
 
     except Exception:
+
         return "Authentication service error."
 
     errors = {
+
         "EMAIL_EXISTS":
             "This email is already registered.",
 
@@ -72,6 +75,79 @@ def firebase_error(response):
         message,
         message
     )
+
+
+# =========================================================
+# FIREBASE AUTHENTICATION LOGIN
+# =========================================================
+
+def login_firebase_user(
+    email,
+    password
+):
+
+    api_key = get_api_key()
+
+    if not api_key:
+
+        return {
+            "success": False,
+            "error": (
+                "FIREBASE_API_KEY is missing from "
+                ".streamlit/secrets.toml"
+            )
+        }
+
+    url = (
+        "https://identitytoolkit.googleapis.com/"
+        "v1/accounts:signInWithPassword"
+        f"?key={api_key}"
+    )
+
+    payload = {
+        "email": email.strip(),
+        "password": password,
+        "returnSecureToken": True
+    }
+
+    try:
+
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=15
+        )
+
+        if response.status_code != 200:
+
+            return {
+                "success": False,
+                "error": firebase_error(response)
+            }
+
+        data = response.json()
+
+        return {
+            "success": True,
+            "localId": data.get("localId"),
+            "email": data.get("email"),
+            "idToken": data.get("idToken"),
+            "refreshToken": data.get("refreshToken")
+        }
+
+    except requests.exceptions.RequestException as e:
+
+        return {
+            "success": False,
+            "error": f"Firebase connection error: {e}"
+        }
+
+    except Exception as e:
+
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 # =========================================================
@@ -157,65 +233,7 @@ def login_customer(
     password
 ):
 
-    api_key = get_api_key()
-
-    if not api_key:
-
-        return {
-            "success": False,
-            "error": (
-                "FIREBASE_API_KEY is missing from "
-                ".streamlit/secrets.toml"
-            )
-        }
-
-    url = (
-        "https://identitytoolkit.googleapis.com/"
-        "v1/accounts:signInWithPassword"
-        f"?key={api_key}"
+    return login_firebase_user(
+        email,
+        password
     )
-
-    payload = {
-        "email": email.strip(),
-        "password": password,
-        "returnSecureToken": True
-    }
-
-    try:
-
-        response = requests.post(
-            url,
-            json=payload,
-            timeout=15
-        )
-
-        if response.status_code != 200:
-
-            return {
-                "success": False,
-                "error": firebase_error(response)
-            }
-
-        data = response.json()
-
-        return {
-            "success": True,
-            "localId": data.get("localId"),
-            "email": data.get("email"),
-            "idToken": data.get("idToken"),
-            "refreshToken": data.get("refreshToken")
-        }
-
-    except requests.exceptions.RequestException as e:
-
-        return {
-            "success": False,
-            "error": f"Firebase connection error: {e}"
-        }
-
-    except Exception as e:
-
-        return {
-            "success": False,
-            "error": str(e)
-        }

@@ -10,8 +10,11 @@ from data.complaints import (
 
 from customer.auth import (
     register_customer,
-    login_customer
+    login_customer,
+    login_firebase_user
 )
+
+from data.admin_auth import is_admin
 
 from admin.admin_dashboard import admin_dashboard
 
@@ -149,21 +152,22 @@ st.markdown(
 
 defaults = {
 
+    # Customer
     "customer_logged_in": False,
-
     "customer_name": "",
-
     "customer_email": "",
-
     "customer_user_id": "",
-
     "id_token": "",
 
+    # Chat
     "messages": [],
-
     "waiting_for_complaint": False,
 
-    "admin_logged_in": False
+    # Admin
+    "admin_logged_in": False,
+    "admin_user_id": "",
+    "admin_email": "",
+    "admin_id_token": ""
 }
 
 
@@ -386,18 +390,27 @@ if not st.session_state.customer_logged_in:
                     st.session_state.customer_logged_in = True
 
                     st.session_state.customer_email = (
-                        result.get("email", email.strip())
+                        result.get(
+                            "email",
+                            email.strip()
+                        )
                     )
 
                     st.session_state.customer_user_id = (
-                        result.get("localId", "")
+                        result.get(
+                            "localId",
+                            ""
+                        )
                     )
 
                     st.session_state.id_token = (
-                        result.get("idToken", "")
+                        result.get(
+                            "idToken",
+                            ""
+                        )
                     )
 
-                    # Firebase login response doesn't
+                    # Firebase login response does not
                     # contain our profile name.
                     st.session_state.customer_name = (
                         email.split("@")[0]
@@ -437,38 +450,107 @@ if not st.session_state.customer_logged_in:
             "Authorized staff only."
         )
 
-        password = st.text_input(
-            "Admin Password",
-            type="password"
-        )
-
-        if st.button(
-            "Admin Login",
-            use_container_width=True
+        with st.form(
+            "admin_login"
         ):
 
-            try:
+            admin_email = st.text_input(
+                "Admin Email"
+            )
 
-                admin_password = st.secrets[
-                    "ADMIN_PASSWORD"
-                ]
+            admin_password = st.text_input(
+                "Admin Password",
+                type="password"
+            )
 
-            except Exception:
+            admin_login = st.form_submit_button(
+                "Admin Login",
+                use_container_width=True
+            )
 
-                admin_password = "admin123"
 
+        # -------------------------------------------------
+        # ADMIN LOGIN PROCESS
+        # -------------------------------------------------
 
-            if password == admin_password:
+        if admin_login:
 
-                st.session_state.admin_logged_in = True
+            if not admin_email.strip():
 
-                st.rerun()
+                st.error(
+                    "Please enter your admin email."
+                )
+
+            elif not admin_password:
+
+                st.error(
+                    "Please enter your admin password."
+                )
 
             else:
 
-                st.error(
-                    "Invalid admin password."
+                # -----------------------------------------
+                # FIREBASE AUTHENTICATION
+                # -----------------------------------------
+
+                result = login_firebase_user(
+                    admin_email.strip(),
+                    admin_password
                 )
+
+                if not result.get("success"):
+
+                    st.error(
+                        result.get(
+                            "error",
+                            "Admin login failed."
+                        )
+                    )
+
+                else:
+
+                    user_id = result.get(
+                        "localId",
+                        ""
+                    )
+
+                    # -----------------------------------------
+                    # FIRESTORE ADMIN AUTHORIZATION
+                    # -----------------------------------------
+
+                    if is_admin(user_id):
+
+                        st.session_state.admin_logged_in = True
+
+                        st.session_state.admin_user_id = (
+                            user_id
+                        )
+
+                        st.session_state.admin_email = (
+                            result.get(
+                                "email",
+                                admin_email.strip()
+                            )
+                        )
+
+                        st.session_state.admin_id_token = (
+                            result.get(
+                                "idToken",
+                                ""
+                            )
+                        )
+
+                        st.success(
+                            "Admin login successful!"
+                        )
+
+                        st.rerun()
+
+                    else:
+
+                        st.error(
+                            "This account does not have admin access."
+                        )
 
 
     # =====================================================
@@ -479,11 +561,23 @@ if not st.session_state.customer_logged_in:
 
         st.markdown("---")
 
+        st.caption(
+            f"Logged in as: "
+            f"{st.session_state.admin_email}"
+        )
+
         if st.button(
-            "Logout Admin"
+            "Logout Admin",
+            use_container_width=True
         ):
 
             st.session_state.admin_logged_in = False
+
+            st.session_state.admin_user_id = ""
+
+            st.session_state.admin_email = ""
+
+            st.session_state.admin_id_token = ""
 
             st.rerun()
 
@@ -506,7 +600,8 @@ else:
     )
 
     st.sidebar.success(
-        f"Logged in as {st.session_state.customer_name}"
+        f"Logged in as "
+        f"{st.session_state.customer_name}"
     )
 
     st.sidebar.markdown("---")
@@ -731,12 +826,6 @@ else:
                         )
 
 
-                    # -----------------------------------------
-                    # IMPORTANT:
-                    # LLM controls Markdown formatting.
-                    # No hard-coded important words here.
-                    # -----------------------------------------
-
                     st.markdown(
                         answer
                     )
@@ -766,11 +855,13 @@ else:
 
 
         st.info(
-            f"Customer: {st.session_state.customer_name}"
+            f"Customer: "
+            f"{st.session_state.customer_name}"
         )
 
         st.info(
-            f"Email: {st.session_state.customer_email}"
+            f"Email: "
+            f"{st.session_state.customer_email}"
         )
 
 
@@ -913,3 +1004,4 @@ Please save this Complaint ID.
                         st.warning(
                             f"Status: {status}"
                         )
+
