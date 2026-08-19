@@ -1,5 +1,9 @@
 from sentence_transformers import SentenceTransformer
-from rag.vector_store import client, COLLECTION_NAME
+
+from rag.vector_store import (
+    client,
+    COLLECTION_NAME,
+)
 
 
 model = SentenceTransformer(
@@ -7,20 +11,40 @@ model = SentenceTransformer(
 )
 
 
-def retrieve(query, top_k=5, threshold=0.45):
+def retrieve(
+    query,
+    top_k=5,
+    threshold=0.45,
+):
+    """
+    Retrieve relevant knowledge-base chunks.
 
-    # Convert question into embedding
+    The user's question embedding is temporary.
+    It is NOT stored in Qdrant.
+    """
+
+    # --------------------------------
+    # 1. Create temporary query embedding
+    # --------------------------------
+
     query_embedding = model.encode(
         query,
-        normalize_embeddings=True
+        normalize_embeddings=True,
     )
 
-    # Search Qdrant
+    # --------------------------------
+    # 2. Search existing embeddings
+    # --------------------------------
+
     result = client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_embedding.tolist(),
-        limit=top_k
+        limit=top_k,
     )
+
+    # --------------------------------
+    # 3. Collect relevant chunks
+    # --------------------------------
 
     results = []
 
@@ -32,15 +56,21 @@ def retrieve(query, top_k=5, threshold=0.45):
 
             results.append({
                 "chunks": point.payload["text"],
-                "score": float(score)
+                "score": float(score),
             })
+
+    # --------------------------------
+    # 4. Return results
+    # --------------------------------
 
     return results
 
 
 if __name__ == "__main__":
 
-    question = input("Enter your question: ")
+    question = input(
+        "Enter your question: "
+    )
 
     results = retrieve(question)
 

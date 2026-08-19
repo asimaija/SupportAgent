@@ -1,37 +1,58 @@
 import atexit
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import (
+    Distance,
+    VectorParams,
+    PointStruct,
+)
 
 from rag.embeddings import create_embeddings
 
 
 COLLECTION_NAME = "appinsnap"
 
-# Connect to local Qdrant storage (file-based, no server needed)
+
+# --------------------------------
+# Connect to local Qdrant storage
+# --------------------------------
+
 client = QdrantClient(
     path="./qdrant_db"
 )
 
-# Ensure the client is closed cleanly before interpreter shutdown,
-# so QdrantClient.__del__ has nothing left to clean up
+
+# --------------------------------
+# Close Qdrant cleanly
+# --------------------------------
+
 atexit.register(client.close)
 
 
 def create_vector_store():
 
+    # Create embeddings for knowledge-base chunks
     chunks, embeddings = create_embeddings()
 
-    # Create collection if it doesn't exist
-    if not client.collection_exists(COLLECTION_NAME):
+    # --------------------------------
+    # Create collection
+    # --------------------------------
+
+    if not client.collection_exists(
+        COLLECTION_NAME
+    ):
 
         client.create_collection(
             collection_name=COLLECTION_NAME,
             vectors_config=VectorParams(
                 size=embeddings.shape[1],
-                distance=Distance.COSINE
-            )
+                distance=Distance.COSINE,
+            ),
         )
+
+    # --------------------------------
+    # Create Qdrant points
+    # --------------------------------
 
     points = []
 
@@ -45,17 +66,27 @@ def create_vector_store():
                 vector=embedding.tolist(),
                 payload={
                     "text": chunk
-                }
+                },
             )
         )
 
+    # --------------------------------
+    # Store ONLY knowledge-base chunks
+    # --------------------------------
+
     client.upsert(
         collection_name=COLLECTION_NAME,
-        points=points
+        points=points,
     )
 
-    print("Qdrant vector store created successfully!")
-    print("Total chunks:", len(chunks))
+    print(
+        "Qdrant vector store created successfully!"
+    )
+
+    print(
+        "Total chunks:",
+        len(chunks)
+    )
 
 
 if __name__ == "__main__":
