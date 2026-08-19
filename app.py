@@ -1,9 +1,10 @@
 import streamlit as st
 
-from agents.agent import ask_agent
-from agents.tools import set_customer_context
+from agents.support_agent import answer_question
+from agents.complaint_detector import is_complaint
 
 from data.complaints import (
+    register_complaint,
     get_customer_complaints
 )
 
@@ -160,6 +161,8 @@ defaults = {
 
     "messages": [],
 
+    "waiting_for_complaint": False,
+
     "admin_logged_in": False
 }
 
@@ -196,7 +199,7 @@ if not st.session_state.customer_logged_in:
     st.sidebar.markdown("---")
 
     account_page = st.sidebar.radio(
-        "Account Menu",
+        "Customer Account",
         [
             "Login",
             "Register",
@@ -307,6 +310,8 @@ if not st.session_state.customer_logged_in:
 
                     st.session_state.messages = []
 
+                    st.session_state.waiting_for_complaint = False
+
                     st.success(
                         "Account created successfully!"
                     )
@@ -334,8 +339,8 @@ if not st.session_state.customer_logged_in:
         )
 
         st.caption(
-            "Login to access Chat Support "
-            "and Check Status."
+            "Login to access Chat Support, "
+            "Register Complaint and Check Status."
         )
 
         with st.form(
@@ -381,33 +386,26 @@ if not st.session_state.customer_logged_in:
                     st.session_state.customer_logged_in = True
 
                     st.session_state.customer_email = (
-                        result.get(
-                            "email",
-                            email.strip()
-                        )
+                        result.get("email", email.strip())
                     )
 
                     st.session_state.customer_user_id = (
-                        result.get(
-                            "localId",
-                            ""
-                        )
+                        result.get("localId", "")
                     )
 
                     st.session_state.id_token = (
-                        result.get(
-                            "idToken",
-                            ""
-                        )
+                        result.get("idToken", "")
                     )
 
                     # Firebase login response doesn't
-                    # contain the profile name.
+                    # contain our profile name.
                     st.session_state.customer_name = (
                         email.split("@")[0]
                     )
 
                     st.session_state.messages = []
+
+                    st.session_state.waiting_for_complaint = False
 
                     st.success(
                         "Login successful!"
@@ -457,7 +455,6 @@ if not st.session_state.customer_logged_in:
 
             except Exception:
 
-                # Development fallback only
                 admin_password = "admin123"
 
 
@@ -509,8 +506,7 @@ else:
     )
 
     st.sidebar.success(
-        f"Logged in as "
-        f"{st.session_state.customer_name}"
+        f"Logged in as {st.session_state.customer_name}"
     )
 
     st.sidebar.markdown("---")
@@ -519,6 +515,7 @@ else:
         "Customer Menu",
         [
             "Chat Support",
+            "Register Complaint",
             "Check Status"
         ]
     )
@@ -546,6 +543,8 @@ else:
         st.session_state.id_token = ""
 
         st.session_state.messages = []
+
+        st.session_state.waiting_for_complaint = False
 
         st.rerun()
 
@@ -606,91 +605,232 @@ else:
             )
 
 
-            with st.chat_message(
-                "user"
-            ):
+            with st.chat_message("user"):
 
                 st.markdown(
                     question
                 )
 
 
-            # ---------------------------------------------
-            # SET CUSTOMER CONTEXT
-            # ---------------------------------------------
+            # =================================================
+            # USER IS PROVIDING COMPLAINT DETAILS
+            # =================================================
 
-            set_customer_context(
+            if st.session_state.waiting_for_complaint:
 
-                name=(
-                    st.session_state.customer_name
-                ),
+                complaint = question
 
-                email=(
-                    st.session_state.customer_email
-                ),
+                name = st.session_state.customer_name
 
-                user_id=(
-                    st.session_state.customer_user_id
+                email = st.session_state.customer_email
+
+                user_id = st.session_state.customer_user_id
+
+
+                try:
+
+                    complaint_id = register_complaint(
+                        name,
+                        complaint,
+                        email,
+                        user_id
+                    )
+
+
+                    st.session_state.waiting_for_complaint = False
+
+
+                    response = (
+                        "Your complaint has been registered successfully.\n\n"
+                        f"**Complaint ID:** `{complaint_id}`\n\n"
+                        "**Status:** Pending\n\n"
+                        "You can check the status from the "
+                        "**Check Status** page."
+                    )
+
+
+                    with st.chat_message(
+                        "assistant"
+                    ):
+
+                        st.success(
+                            response
+                        )
+
+
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": response
+                        }
+                    )
+
+
+                except Exception as e:
+
+                    with st.chat_message(
+                        "assistant"
+                    ):
+
+                        st.error(
+                            f"Unable to register complaint: {e}"
+                        )
+
+
+            # =================================================
+            # NEW COMPLAINT DETECTED
+            # =================================================
+
+            elif is_complaint(question):
+
+                st.session_state.waiting_for_complaint = True
+
+
+                response = (
+                    "I'm sorry you're experiencing a problem. "
+                    "I can help you register a complaint.\n\n"
+                    f"You're logged in as "
+                    f"**{st.session_state.customer_name}**.\n\n"
+                    "Please describe your complaint in detail."
                 )
-            )
 
 
-            # ---------------------------------------------
-            # LANGCHAIN AGENT
-            # ---------------------------------------------
-
-            with st.chat_message(
-                "assistant"
-            ):
-
-                with st.spinner(
-                    "Thinking..."
+                with st.chat_message(
+                    "assistant"
                 ):
 
-                    try:
-
-                        answer = ask_agent(
-
-                            question=question,
-
-                            customer_name=(
-                                st.session_state.customer_name
-                            ),
-
-                            customer_email=(
-                                st.session_state.customer_email
-                            ),
-
-                            customer_user_id=(
-                                st.session_state.customer_user_id
-                            )
-                        )
+                    st.markdown(
+                        response
+                    )
 
 
-                    except Exception as e:
-
-                        answer = (
-                            "Sorry, I was unable to "
-                            "process your request.\n\n"
-                            f"Error: {str(e)}"
-                        )
-
-
-                st.markdown(
-                    answer
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response
+                    }
                 )
 
 
-            # ---------------------------------------------
-            # SAVE ASSISTANT MESSAGE
-            # ---------------------------------------------
+            # =================================================
+            # NORMAL AI / RAG QUESTION
+            # =================================================
 
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": answer
-                }
+            else:
+
+                with st.chat_message(
+                    "assistant"
+                ):
+
+                    with st.spinner(
+                        "Thinking..."
+                    ):
+
+                        answer = answer_question(
+                            question
+                        )
+
+
+                    # -----------------------------------------
+                    # IMPORTANT:
+                    # LLM controls Markdown formatting.
+                    # No hard-coded important words here.
+                    # -----------------------------------------
+
+                    st.markdown(
+                        answer
+                    )
+
+
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": answer
+                    }
+                )
+
+
+    # =====================================================
+    # REGISTER COMPLAINT
+    # =====================================================
+
+    elif page == "Register Complaint":
+
+        st.header(
+            "Register Complaint"
+        )
+
+        st.caption(
+            "Your account information will be attached automatically."
+        )
+
+
+        st.info(
+            f"Customer: {st.session_state.customer_name}"
+        )
+
+        st.info(
+            f"Email: {st.session_state.customer_email}"
+        )
+
+
+        with st.form(
+            "customer_complaint"
+        ):
+
+            complaint = st.text_area(
+                "Complaint Details",
+                placeholder="Describe your problem...",
+                height=160
             )
+
+            submit = st.form_submit_button(
+                "Submit Complaint",
+                use_container_width=True
+            )
+
+
+        if submit:
+
+            if not complaint.strip():
+
+                st.error(
+                    "Please describe your complaint."
+                )
+
+            else:
+
+                try:
+
+                    complaint_id = register_complaint(
+                        st.session_state.customer_name,
+                        complaint.strip(),
+                        st.session_state.customer_email,
+                        st.session_state.customer_user_id
+                    )
+
+
+                    st.success(
+                        "Complaint registered successfully!"
+                    )
+
+
+                    st.info(
+                        f"""
+**Complaint ID:** `{complaint_id}`
+
+**Status:** Pending
+
+Please save this Complaint ID.
+"""
+                    )
+
+
+                except Exception as e:
+
+                    st.error(
+                        f"Unable to register complaint: {e}"
+                    )
 
 
     # =====================================================
@@ -708,10 +848,6 @@ else:
         )
 
 
-        # -------------------------------------------------
-        # GET CUSTOMER COMPLAINTS
-        # -------------------------------------------------
-
         try:
 
             complaints = get_customer_complaints(
@@ -727,21 +863,12 @@ else:
             complaints = []
 
 
-        # -------------------------------------------------
-        # NO COMPLAINTS
-        # -------------------------------------------------
-
         if not complaints:
 
             st.info(
-                "You have not registered "
-                "any complaints yet."
+                "You have not registered any complaints yet."
             )
 
-
-        # -------------------------------------------------
-        # DISPLAY COMPLAINTS
-        # -------------------------------------------------
 
         else:
 
@@ -768,10 +895,6 @@ else:
                         "Pending"
                     )
 
-
-                    # -------------------------------------
-                    # STATUS DISPLAY
-                    # -------------------------------------
 
                     if status == "Resolved":
 
