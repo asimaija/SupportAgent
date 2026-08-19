@@ -1,6 +1,11 @@
-from data.firebase_db import db
+# =========================================================
+# data/complaints.py
+# =========================================================
+
 from datetime import datetime
 import uuid
+
+from data.firebase_db import db
 
 
 # =========================================================
@@ -10,30 +15,71 @@ import uuid
 def register_complaint(
     name,
     complaint,
-    email=None,
-    user_id=None
+    email,
+    user_id
 ):
+    """
+    Register a customer complaint in Firebase Firestore.
+
+    Returns:
+        Complaint ID
+    """
+
+    # -----------------------------------------------------
+    # VALIDATION
+    # -----------------------------------------------------
+
+    if not user_id:
+        raise ValueError(
+            "Customer user ID is required."
+        )
+
+    if not complaint or not complaint.strip():
+        raise ValueError(
+            "Complaint details cannot be empty."
+        )
+
+    # -----------------------------------------------------
+    # CREATE COMPLAINT ID
+    # -----------------------------------------------------
 
     complaint_id = (
-        "CMP-" +
-        str(uuid.uuid4())[:8].upper()
+        "CMP-"
+        + str(uuid.uuid4())[:8].upper()
     )
 
+    # -----------------------------------------------------
+    # CREATE DATA
+    # -----------------------------------------------------
+
     data = {
+
         "complaint_id": complaint_id,
-        "name": name,
-        "complaint": complaint,
+
+        "name": (
+            name.strip()
+            if name
+            else ""
+        ),
+
+        "email": (
+            email.strip()
+            if email
+            else ""
+        ),
+
+        "user_id": user_id,
+
+        "complaint": complaint.strip(),
+
         "status": "Pending",
+
         "created_at": datetime.now().isoformat()
     }
 
-    if email:
-
-        data["email"] = email
-
-    if user_id:
-
-        data["user_id"] = user_id
+    # -----------------------------------------------------
+    # SAVE TO FIRESTORE
+    # -----------------------------------------------------
 
     db.collection(
         "complaints"
@@ -41,70 +87,25 @@ def register_complaint(
         complaint_id
     ).set(data)
 
+    # -----------------------------------------------------
+    # RETURN COMPLAINT ID
+    # -----------------------------------------------------
+
     return complaint_id
-
-
-# =========================================================
-# GET COMPLAINT
-# =========================================================
-
-def get_complaint(
-    complaint_id
-):
-
-    complaint_id = complaint_id.strip().upper()
-
-    # Try document ID
-    doc = (
-        db.collection("complaints")
-        .document(complaint_id)
-        .get()
-    )
-
-    if doc.exists:
-
-        data = doc.to_dict()
-
-        data["complaint_id"] = data.get(
-            "complaint_id",
-            complaint_id
-        )
-
-        return data
-
-    # Fallback search
-    results = (
-        db.collection("complaints")
-        .where(
-            "complaint_id",
-            "==",
-            complaint_id
-        )
-        .limit(1)
-        .stream()
-    )
-
-    for document in results:
-
-        data = document.to_dict()
-
-        data["complaint_id"] = data.get(
-            "complaint_id",
-            complaint_id
-        )
-
-        return data
-
-    return None
 
 
 # =========================================================
 # GET CUSTOMER COMPLAINTS
 # =========================================================
 
-def get_customer_complaints(
-    user_id
-):
+def get_customer_complaints(user_id):
+    """
+    Return only complaints belonging to the
+    authenticated customer.
+    """
+
+    if not user_id:
+        return []
 
     complaints = []
 
@@ -122,14 +123,125 @@ def get_customer_complaints(
 
         data = doc.to_dict()
 
-        data["complaint_id"] = data.get(
-            "complaint_id",
-            doc.id
-        )
+        # Safety fallback
+        if not data.get("complaint_id"):
+            data["complaint_id"] = doc.id
+
+        if not data.get("status"):
+            data["status"] = "Pending"
 
         complaints.append(data)
 
+    # -----------------------------------------------------
+    # NEWEST FIRST
+    # -----------------------------------------------------
+
+    complaints.sort(
+        key=lambda x: x.get(
+            "created_at",
+            ""
+        ),
+        reverse=True
+    )
+
     return complaints
+
+
+# =========================================================
+# GET SINGLE COMPLAINT
+# =========================================================
+
+def get_complaint(complaint_id):
+    """
+    Get one complaint by Complaint ID.
+    """
+
+    if not complaint_id:
+        return None
+
+    doc = (
+        db.collection("complaints")
+        .document(complaint_id)
+        .get()
+    )
+
+    if not doc.exists:
+        return None
+
+    data = doc.to_dict()
+
+    if not data.get("complaint_id"):
+        data["complaint_id"] = doc.id
+
+    if not data.get("status"):
+        data["status"] = "Pending"
+
+    return data
+
+
+# =========================================================
+# UPDATE COMPLAINT STATUS
+# =========================================================
+
+def update_complaint_status(
+    complaint_id,
+    status
+):
+    """
+    Update the status of a complaint.
+
+    Allowed statuses:
+        Pending
+        In Progress
+        Resolved
+    """
+
+    allowed_statuses = [
+        "Pending",
+        "In Progress",
+        "Resolved"
+    ]
+
+    if status not in allowed_statuses:
+        raise ValueError(
+            "Invalid complaint status."
+        )
+
+    if not complaint_id:
+        raise ValueError(
+            "Complaint ID is required."
+        )
+
+    # -----------------------------------------------------
+    # FIND COMPLAINT
+    # -----------------------------------------------------
+
+    doc_ref = (
+        db.collection("complaints")
+        .document(complaint_id)
+    )
+
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        raise ValueError(
+            "Complaint not found."
+        )
+
+    # -----------------------------------------------------
+    # UPDATE
+    # -----------------------------------------------------
+
+    doc_ref.update({
+
+        "status": status,
+
+        "updated_at": (
+            datetime.now().isoformat()
+        )
+    })
+
+    return True
 
 
 # =========================================================
@@ -137,6 +249,11 @@ def get_customer_complaints(
 # =========================================================
 
 def get_all_complaints():
+    """
+    Get all complaints.
+
+    Used by the admin dashboard.
+    """
 
     complaints = []
 
@@ -149,70 +266,24 @@ def get_all_complaints():
 
         data = doc.to_dict()
 
-        data["document_id"] = doc.id
+        if not data.get("complaint_id"):
+            data["complaint_id"] = doc.id
 
-        data["complaint_id"] = data.get(
-            "complaint_id",
-            doc.id
-        )
-
-        data["status"] = data.get(
-            "status",
-            "Pending"
-        )
+        if not data.get("status"):
+            data["status"] = "Pending"
 
         complaints.append(data)
 
+    # -----------------------------------------------------
+    # NEWEST FIRST
+    # -----------------------------------------------------
+
+    complaints.sort(
+        key=lambda x: x.get(
+            "created_at",
+            ""
+        ),
+        reverse=True
+    )
+
     return complaints
-
-
-# =========================================================
-# UPDATE STATUS
-# =========================================================
-
-def update_complaint_status(
-    complaint_id,
-    new_status
-):
-
-    complaint_id = complaint_id.strip().upper()
-
-    # Try document ID
-    doc_ref = (
-        db.collection("complaints")
-        .document(complaint_id)
-    )
-
-    doc = doc_ref.get()
-
-    if doc.exists:
-
-        doc_ref.update({
-            "status": new_status,
-            "updated_at": datetime.now().isoformat()
-        })
-
-        return True
-
-    # Fallback search
-    results = (
-        db.collection("complaints")
-        .where(
-            "complaint_id",
-            "==",
-            complaint_id
-        )
-        .limit(1)
-        .stream()
-    )
-
-    for document in results:
-
-        document.reference.update({
-            "status": new_status,
-            "updated_at": datetime.now().isoformat()
-        })
-
-        return True
-
-    return False

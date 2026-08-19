@@ -2,7 +2,48 @@
 # agents/support_agent.py
 # =========================================================
 
+from langchain_ollama import ChatOllama
 from rag.retriever import retrieve
+
+
+# =========================================================
+# OLLAMA / QWEN
+# =========================================================
+
+llm = ChatOllama(
+    model="qwen2.5:0.5b",
+    temperature=0.2,
+)
+
+
+# =========================================================
+# SYSTEM PROMPT
+# =========================================================
+
+SYSTEM_PROMPT = """
+You are the AppInSnap customer support assistant.
+
+You answer ONLY questions related to AppInSnap.
+
+Use ONLY the provided AppInSnap knowledge.
+
+Rules:
+
+1. Do not invent information.
+2. Do not use your general knowledge.
+3. If the context does not contain the answer, say:
+   "I could not find this information in the AppInSnap knowledge base."
+4. Keep answers clear and concise.
+5. You can answer questions about:
+   - AppInSnap
+   - AppInSnap services
+   - AppInSnap policies
+   - AppInSnap FAQs
+   - AppInSnap company information
+
+Do NOT handle complaint registration here.
+Complaint registration is handled separately by app.py.
+"""
 
 
 # =========================================================
@@ -10,24 +51,15 @@ from rag.retriever import retrieve
 # =========================================================
 
 def answer_question(question):
-    """
-    Answer normal AppInSnap questions using the RAG system.
-
-    Complaint registration is NOT handled here.
-    Complaint detection and registration are handled
-    separately by app.py.
-    """
 
     if not question or not question.strip():
 
-        return (
-            "Please enter a question about AppInSnap."
-        )
+        return "Please enter a question about AppInSnap."
 
     question = question.strip()
 
     # -----------------------------------------------------
-    # RETRIEVE COMPANY KNOWLEDGE
+    # RETRIEVE RAG CONTEXT
     # -----------------------------------------------------
 
     try:
@@ -38,7 +70,7 @@ def answer_question(question):
             threshold=0.35
         )
 
-    except Exception as e:
+    except Exception:
 
         return (
             "Sorry, I was unable to search the "
@@ -57,7 +89,7 @@ def answer_question(question):
         )
 
     # -----------------------------------------------------
-    # EXTRACT TEXT
+    # EXTRACT CHUNKS
     # -----------------------------------------------------
 
     context_parts = []
@@ -73,12 +105,6 @@ def answer_question(question):
                 or ""
             )
 
-            if text.strip():
-
-                context_parts.append(
-                    text.strip()
-                )
-
         else:
 
             text = getattr(
@@ -87,11 +113,11 @@ def answer_question(question):
                 ""
             )
 
-            if text and text.strip():
+        if text and text.strip():
 
-                context_parts.append(
-                    text.strip()
-                )
+            context_parts.append(
+                text.strip()
+            )
 
     # -----------------------------------------------------
     # NO READABLE CONTENT
@@ -113,17 +139,36 @@ def answer_question(question):
     )
 
     # -----------------------------------------------------
-    # RETURN RAG INFORMATION
-    # -----------------------------------------------------
-    #
-    # IMPORTANT:
-    # We are not using an LLM here.
-    #
-    # This prevents Qwen 0.5B from inventing answers
-    # or answering unrelated questions.
-    #
-    # The retrieved AppInSnap information is returned
-    # directly.
+    # PROMPT QWEN
     # -----------------------------------------------------
 
-    return context
+    prompt = f"""
+{SYSTEM_PROMPT}
+
+AppInSnap Knowledge:
+
+{context}
+
+Customer Question:
+
+{question}
+
+Answer the customer using ONLY the AppInSnap Knowledge above.
+"""
+
+    # -----------------------------------------------------
+    # CALL QWEN THROUGH OLLAMA
+    # -----------------------------------------------------
+
+    try:
+
+        response = llm.invoke(prompt)
+
+        return response.content.strip()
+
+    except Exception as e:
+
+        return (
+            "Sorry, I was unable to generate an answer "
+            f"at this time. Error: {str(e)}"
+        )
