@@ -36,19 +36,19 @@ st.set_page_config(
 # COLORS  ("Signal Blue" theme — light, professional, B2B-tech)
 # =========================================================
 
-BG = "#F6F8FC"           # soft blue-white page background
+BG = "#F6F5FC"           # soft violet-white page background
 SIDEBAR = "#FFFFFF"
 CARD = "#FFFFFF"
-CARD_HOVER = "#EEF2FF"
-BORDER = "#E1E6F0"
+CARD_HOVER = "#F1EEFF"
+BORDER = "#E4E0F5"
 
-ACCENT = "#2451FF"        # primary brand blue
-ACCENT_DARK = "#1739C4"
-ACCENT_SOFT = "#EAF0FF"   # light blue tint for subtle fills
+ACCENT = "#4F35E0"        # primary brand indigo/violet, sampled from the logo mark
+ACCENT_DARK = "#3820B8"
+ACCENT_SOFT = "#EEEBFF"   # light violet tint for subtle fills
 TEAL = "#12B8A6"          # secondary accent
 
 WHITE = "#FFFFFF"
-TEXT = "#1A2233"          # near-navy, not pure black
+TEXT = "#1A162A"          # near-navy, matches the logo wordmark
 MUTED = "#6B7787"
 
 GREEN = "#16A34A"
@@ -60,7 +60,7 @@ RED = "#DC2626"
 # LOGO
 # =========================================================
 
-LOGO_PATH = Path(r"D:\Projects\SupportAgent\images\logo.png")
+LOGO_PATH = Path(__file__).resolve().parent / "images" / "logo.png"
 
 
 # =========================================================
@@ -145,6 +145,8 @@ render_html(
         color: {TEXT} !important;
 
         font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+
+        font-size: 16px;
     }}
 
 
@@ -239,6 +241,41 @@ render_html(
         margin-bottom: 5px !important;
 
         color: {TEXT} !important;
+
+        font-size: 16px !important;
+    }}
+
+
+    [data-testid="stSidebar"] div.stButton > button {{
+
+        font-size: 16px !important;
+
+        padding: 10px 16px !important;
+    }}
+
+
+    /* Give the Logout buttons a bit more visual weight so they
+       read as distinct, deliberate actions in the sidebar. */
+
+    .st-key-customer_logout button,
+    .st-key-admin_logout button {{
+
+        border-color: {RED} !important;
+
+        color: {RED} !important;
+
+        font-weight: 600 !important;
+    }}
+
+
+    .st-key-customer_logout button:hover,
+    .st-key-admin_logout button:hover {{
+
+        background: #FDECEC !important;
+
+        border-color: {RED} !important;
+
+        color: {RED} !important;
     }}
 
 
@@ -284,7 +321,7 @@ render_html(
 
         color: {TEXT};
 
-        font-size: 22px;
+        font-size: 24px;
 
         font-weight: 700;
 
@@ -302,7 +339,7 @@ render_html(
 
         color: {MUTED};
 
-        font-size: 14px;
+        font-size: 15px;
 
         margin-right: 10px;
     }}
@@ -398,7 +435,7 @@ render_html(
 
         color: {ACCENT_DARK} !important;
 
-        box-shadow: 0 4px 12px rgba(36, 81, 255, 0.12) !important;
+        box-shadow: 0 4px 12px rgba(79, 53, 224, 0.16) !important;
     }}
 
 
@@ -464,6 +501,8 @@ render_html(
     [data-testid="stChatMessage"] li {{
 
         color: {TEXT} !important;
+
+        font-size: 17px !important;
 
         line-height: 1.65 !important;
     }}
@@ -668,7 +707,7 @@ render_html(
 
         padding: 6px 0;
 
-        border-bottom: 1px solid rgba(36, 81, 255, 0.12);
+        border-bottom: 1px solid rgba(79, 53, 224, 0.16);
     }}
 
 
@@ -1123,7 +1162,7 @@ elif st.session_state.admin_logged_in:
 
     st.sidebar.caption(f"Logged in as: {st.session_state.admin_email}")
 
-    if st.sidebar.button("Logout Admin", use_container_width=True):
+    if st.sidebar.button("🚪  Logout Admin", use_container_width=True, key="admin_logout"):
 
         st.session_state.admin_logged_in = False
         st.session_state.admin_user_id = ""
@@ -1151,7 +1190,23 @@ else:
     # CUSTOMER SIDEBAR
     # =====================================================
 
-    st.sidebar.markdown("## ⚡ AppInSnap")
+    if LOGO_PATH.exists():
+
+        logo_col, title_col = st.sidebar.columns([0.25, 0.75])
+
+        with logo_col:
+            st.image(str(LOGO_PATH), width=36)
+
+        with title_col:
+            st.markdown(
+                '<div style="font-size:19px; font-weight:700; '
+                'margin-top:6px;">AppInSnap</div>',
+                unsafe_allow_html=True
+            )
+
+    else:
+
+        st.sidebar.markdown("## ⚡ AppInSnap")
 
     st.sidebar.markdown(
         f"""
@@ -1159,13 +1214,14 @@ else:
             background: {CARD};
             border: 1px solid {BORDER};
             border-radius: 12px;
-            padding: 12px;
+            padding: 14px;
+            margin-top: 14px;
             margin-bottom: 18px;
         ">
-            <div style="color: {MUTED}; font-size: 12px;">
+            <div style="color: {MUTED}; font-size: 13px;">
                 Logged in as
             </div>
-            <div style="color: {TEXT}; font-size: 15px; font-weight: 600; margin-top: 4px;">
+            <div style="color: {TEXT}; font-size: 16px; font-weight: 600; margin-top: 4px;">
                 {st.session_state.customer_name}
             </div>
         </div>
@@ -1175,7 +1231,7 @@ else:
 
     st.sidebar.markdown(
         f"""
-        <div style="color: {ACCENT}; font-size: 13px; font-weight: 700; margin-bottom: 8px;">
+        <div style="color: {ACCENT}; font-size: 14px; font-weight: 700; margin-bottom: 8px;">
             Customer Menu
         </div>
         """,
@@ -1193,7 +1249,7 @@ else:
 
     st.sidebar.markdown("---")
 
-    if st.sidebar.button("Logout", use_container_width=True):
+    if st.sidebar.button("🚪  Logout", use_container_width=True, key="customer_logout"):
 
         st.session_state.customer_logged_in = False
         st.session_state.customer_name = ""
@@ -1442,12 +1498,15 @@ else:
             # ===============================================
             # NORMAL RAG — scoped to AppInSnap only.
             #
-            # This wraps the question with a scope instruction so the
-            # assistant declines and redirects for anything unrelated
-            # to AppInSnap, even if support_agent.py's own system
-            # prompt doesn't already enforce that. For a cleaner fix,
-            # add the same restriction directly to the system prompt
-            # inside agents/support_agent.py.
+            # The raw question is sent as-is. Scoping is enforced
+            # inside agents/support_agent.py (system prompt + a hard
+            # retrieval-confidence gate), NOT by prepending instruction
+            # text here. Prepending instructions to the question used
+            # to corrupt the retrieval step, because that whole block
+            # of text (not just the question) was being embedded and
+            # searched against the knowledge base — which is what let
+            # off-topic questions like "define physics" slip through
+            # and get answered instead of refused.
             # ===============================================
 
             else:
@@ -1456,17 +1515,7 @@ else:
 
                     with st.spinner("Thinking..."):
 
-                        scoped_question = (
-                            "You are the AppInSnap customer support assistant. "
-                            "Only answer questions related to the AppInSnap app, "
-                            "its features, account, billing, or usage. "
-                            "If the question is unrelated to AppInSnap, politely "
-                            "say you can only help with AppInSnap-related "
-                            "questions and ask them to rephrase.\n\n"
-                            f"Customer question: {question}"
-                        )
-
-                        answer = answer_question(scoped_question)
+                        answer = answer_question(question)
 
                     st.markdown(answer)
 

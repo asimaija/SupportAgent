@@ -4,12 +4,11 @@ pandas
 pathlib
 sentence-transformers
 flask
-ollama
 chromadb
 streamlit
 qdrant-client
 torchvision
 firebase-admin
 langchain
-langchain-ollama
+langchain-groq
 langchain-qdrant
