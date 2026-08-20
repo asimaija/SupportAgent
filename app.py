@@ -1,5 +1,6 @@
 import streamlit as st
 import textwrap
+import re
 from pathlib import Path
 
 from agents.support_agent import answer_question
@@ -68,6 +69,10 @@ LOGO_PATH = Path(__file__).resolve().parent / "images" / "logo.png"
 # the full logo if this hasn't been generated yet.
 LOGO_MARK_PATH = Path(__file__).resolve().parent / "images" / "logo_mark.png"
 
+# All-white version of the icon mark, for use on top of the brand-colored
+# header banner where the regular indigo mark would blend in and disappear.
+LOGO_MARK_WHITE_PATH = Path(__file__).resolve().parent / "images" / "logo_mark_white.png"
+
 
 # =========================================================
 # HTML HELPER
@@ -108,6 +113,24 @@ def build_complaint_card_html(complaint_id, complaint_text, status, customer_nam
         </div>
     </div>
     """
+
+
+def strip_bold(text):
+    """
+    Strips markdown bold markers (**word** / __word__) so answers and
+    labels render as plain text everywhere in the app — bolded words
+    inside generated answers don't look good mixed into normal prose.
+    """
+
+    if not text:
+
+        return text
+
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+
+    text = re.sub(r"__(.+?)__", r"\1", text)
+
+    return text
 
 
 def render_html(content):
@@ -325,13 +348,17 @@ render_html(
 
     .app-title {{
 
-        color: {TEXT};
+        color: {WHITE};
 
-        font-size: 24px;
+        font-size: 22px;
 
         font-weight: 700;
 
         letter-spacing: -0.4px;
+
+        line-height: 48px;
+
+        white-space: nowrap;
     }}
 
 
@@ -343,11 +370,35 @@ render_html(
 
     .header-user {{
 
-        color: {MUTED};
+        color: {WHITE};
 
         font-size: 15px;
 
-        margin-right: 10px;
+        font-weight: 600;
+
+        line-height: 48px;
+
+        white-space: nowrap;
+
+        overflow: visible;
+
+        text-align: right;
+    }}
+
+
+    /* Colored banner behind the top header row (logo / title / user)
+       so it always sits on the brand color with white text, on every
+       page — landing, chat, and admin alike. */
+
+    div[data-testid="stHorizontalBlock"]:has(.app-header-bar) {{
+
+        background: {ACCENT};
+
+        border-radius: 14px;
+
+        padding: 10px 20px !important;
+
+        margin-bottom: 26px !important;
     }}
 
 
@@ -856,31 +907,42 @@ for key, value in defaults.items():
 
 def show_header():
 
-    col_logo, col_title, col_spacer, col_user = st.columns(
-        [0.06, 0.5, 0.34, 0.1]
+    col_logo, col_title, col_user = st.columns(
+        [0.08, 0.52, 0.4]
     )
 
     with col_logo:
 
-        if LOGO_MARK_PATH.exists():
+        # Invisible marker picked up by the `:has(.app-header-bar)` CSS
+        # rule above, so this whole row gets the brand-colored banner
+        # background on every page (landing, chat, and admin alike).
+        # It has to live inside the columns block to be a descendant
+        # of the stHorizontalBlock that :has() matches against.
+        render_html('<div class="app-header-bar" style="display:none;"></div>')
 
-            st.image(str(LOGO_MARK_PATH), width=42)
+        if LOGO_MARK_WHITE_PATH.exists():
+
+            st.image(str(LOGO_MARK_WHITE_PATH), width=48)
+
+        elif LOGO_MARK_PATH.exists():
+
+            st.image(str(LOGO_MARK_PATH), width=48)
 
         elif LOGO_PATH.exists():
 
-            st.image(str(LOGO_PATH), width=42)
+            st.image(str(LOGO_PATH), width=48)
 
         else:
 
             render_html(
-                '<div style="font-size:30px; margin-top:6px;">⚡</div>'
+                '<div style="font-size:32px; color:{WHITE}; '
+                'line-height:48px;">⚡</div>'
             )
 
     with col_title:
 
         render_html(
-            '<div class="app-title" style="margin-top:10px;">'
-            'AppInSnap Support</div>'
+            '<div class="app-title">AppInSnap Support</div>'
         )
 
     with col_user:
@@ -888,15 +950,13 @@ def show_header():
         if st.session_state.customer_logged_in:
 
             render_html(
-                f'<div class="header-user" style="margin-top:14px; '
-                f'text-align:right;">{st.session_state.customer_name}</div>'
+                f'<div class="header-user">{st.session_state.customer_name}</div>'
             )
 
         elif st.session_state.admin_logged_in:
 
             render_html(
-                f'<div class="header-user" style="margin-top:14px; '
-                f'text-align:right;">{st.session_state.admin_email}</div>'
+                f'<div class="header-user">{st.session_state.admin_email}</div>'
             )
 
 
@@ -1175,9 +1235,54 @@ if not st.session_state.customer_logged_in and not st.session_state.admin_logged
 
 elif st.session_state.admin_logged_in:
 
-    st.sidebar.markdown("## 🛠️ AppInSnap Admin")
+    # Same logo + title treatment as the customer sidebar, so both
+    # sidebars are visually consistent (same logo size, same title
+    # font size/weight/length).
+    admin_sidebar_logo = LOGO_MARK_PATH if LOGO_MARK_PATH.exists() else LOGO_PATH
 
-    st.sidebar.caption(f"Logged in as: {st.session_state.admin_email}")
+    if admin_sidebar_logo.exists():
+
+        admin_logo_col, admin_title_col = st.sidebar.columns([0.22, 0.78])
+
+        with admin_logo_col:
+            st.image(str(admin_sidebar_logo), width=40)
+
+        with admin_title_col:
+            st.markdown(
+                f'<div style="font-size:20px; font-weight:700; '
+                f'color:{ACCENT_DARK}; margin-top:6px;">AppInSnap</div>',
+                unsafe_allow_html=True
+            )
+
+    else:
+
+        st.sidebar.markdown("## 🛠️ AppInSnap")
+
+    st.sidebar.markdown(
+        f'<div style="color:{ACCENT}; font-size:14px; font-weight:700; '
+        f'margin-top:6px; margin-bottom:10px;">🛠️ Admin</div>',
+        unsafe_allow_html=True
+    )
+
+    st.sidebar.markdown(
+        f"""
+        <div style="
+            background: {CARD};
+            border: 1px solid {BORDER};
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 18px;
+        ">
+            <div style="color: {MUTED}; font-size: 13px;">
+                Logged in as
+            </div>
+            <div style="color: {TEXT}; font-size: 16px; font-weight: 600; margin-top: 4px; word-break: break-all;">
+                {st.session_state.admin_email}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     if st.sidebar.button("🚪  Logout Admin", use_container_width=True, key="admin_logout"):
 
@@ -1214,7 +1319,7 @@ else:
         logo_col, title_col = st.sidebar.columns([0.22, 0.78])
 
         with logo_col:
-            st.image(str(sidebar_logo), width=34)
+            st.image(str(sidebar_logo), width=40)
 
         with title_col:
             st.markdown(
@@ -1332,7 +1437,7 @@ else:
 
                     with st.spinner("Searching the AppInSnap knowledge base..."):
 
-                        answer = answer_question(question)
+                        answer = strip_bold(answer_question(question))
 
                     st.markdown(answer)
 
@@ -1451,7 +1556,7 @@ else:
                         render_html(card_html)
 
                         st.caption(
-                            "You can check its status anytime from **Check Status**."
+                            "You can check its status anytime from Check Status."
                         )
 
                     st.session_state.messages.append(
@@ -1465,7 +1570,7 @@ else:
                     st.session_state.messages.append(
                         {
                             "role": "assistant",
-                            "content": "You can check its status anytime from **Check Status**.",
+                            "content": "You can check its status anytime from Check Status.",
                         }
                     )
 
@@ -1524,7 +1629,7 @@ else:
 
                     with st.spinner("Searching the AppInSnap knowledge base..."):
 
-                        answer = answer_question(question)
+                        answer = strip_bold(answer_question(question))
 
                     st.markdown(answer)
 

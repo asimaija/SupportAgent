@@ -30,8 +30,8 @@ def _render_status_updater(complaint, key_prefix):
     with st.container(border=True):
 
         st.markdown(
-            f"**Complaint ID:** `{complaint_id}`  \n"
-            f"**Customer:** {customer_name} ({customer_email})"
+            f"Complaint ID: `{complaint_id}`  \n"
+            f"Customer: {customer_name} ({customer_email})"
         )
 
         st.write(complaint_text)
