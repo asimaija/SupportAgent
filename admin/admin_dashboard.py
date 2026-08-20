@@ -1,23 +1,155 @@
 import streamlit as st
 
 from data.complaints import (
-    get_complaint,
     get_all_complaints,
+    get_complaint,
     update_complaint_status
 )
 
 
+STATUS_OPTIONS = ["Pending", "In Progress", "Resolved"]
+
+
+def _render_status_updater(complaint, key_prefix):
+    """
+    Shared block: customer/complaint details + a status dropdown
+    and Update button. Used both by the lookup-by-ID card and by
+    each row in the full complaint list.
+    """
+
+    complaint_id = complaint.get("complaint_id", "")
+    complaint_text = complaint.get("complaint", "")
+    customer_name = complaint.get("name", complaint.get("customer_name", ""))
+    customer_email = complaint.get("email", "")
+    current_status = complaint.get("status", "Pending")
+
+    with st.container(border=True):
+
+        st.markdown(
+            f"**Complaint ID:** `{complaint_id}`  \n"
+            f"**Customer:** {customer_name} ({customer_email})"
+        )
+
+        st.write(complaint_text)
+
+        status_col, button_col = st.columns([0.6, 0.4])
+
+        with status_col:
+
+            new_status = st.selectbox(
+                "Status",
+                STATUS_OPTIONS,
+                index=STATUS_OPTIONS.index(current_status)
+                if current_status in STATUS_OPTIONS else 0,
+                key=f"{key_prefix}_status_select_{complaint_id}",
+                label_visibility="collapsed"
+            )
+
+        with button_col:
+
+            if st.button(
+                "Update",
+                key=f"{key_prefix}_update_btn_{complaint_id}",
+                use_container_width=True
+            ):
+
+                try:
+
+                    update_complaint_status(complaint_id, new_status)
+
+                    st.success(f"Complaint {complaint_id} updated to '{new_status}'.")
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(f"Failed to update complaint: {e}")
+
+
 def admin_dashboard():
+    """
+    Renders the admin dashboard:
+      1. Look up a single complaint by ID and update its status.
+      2. Browse/filter the full complaint list, each with its own
+         status dropdown + Update button.
 
-    st.header("Manage Complaints")
+    Requires these functions in data/complaints.py:
+      - get_all_complaints() -> list[dict]
+      - get_complaint(complaint_id) -> dict | None
+      - update_complaint_status(complaint_id, new_status) -> None
+    """
 
-    st.caption(
-        "Staff can view and update customer complaints."
+    st.markdown(
+        """
+        <div style="
+            text-align:center;
+            margin-top:10px;
+            margin-bottom:30px;
+        ">
+            <h1 style="color:#1A2233; font-size:32px; font-weight:700;">
+                Complaints
+            </h1>
+            <p style="color:#6B7787; font-size:15px;">
+                Review and update the status of customer complaints.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
-    # =====================================================
-    # STATUS COUNTS
-    # =====================================================
+    # ---------------------------------------------------
+    # LOOK UP A SINGLE COMPLAINT BY ID
+    # ---------------------------------------------------
+
+    st.markdown("#### Look up a complaint")
+
+    lookup_col, btn_col = st.columns([0.7, 0.3])
+
+    with lookup_col:
+
+        lookup_id = st.text_input(
+            "Complaint ID",
+            placeholder="e.g. CMP-6B9C0D77",
+            label_visibility="collapsed"
+        )
+
+    with btn_col:
+
+        find_clicked = st.button("Find", use_container_width=True)
+
+    if find_clicked:
+
+        if not lookup_id.strip():
+
+            st.warning("Enter a complaint ID first.")
+
+        else:
+
+            try:
+
+                found = get_complaint(lookup_id.strip())
+
+            except Exception as e:
+
+                found = None
+
+                st.error(f"Unable to look up complaint: {e}")
+
+            if found:
+
+                _render_status_updater(found, key_prefix="lookup")
+
+            else:
+
+                st.warning(f"No complaint found with ID '{lookup_id.strip()}'.")
+
+    st.markdown("---")
+
+    # ---------------------------------------------------
+    # FULL LIST
+    # ---------------------------------------------------
+
+    st.markdown("#### All complaints")
 
     try:
 
@@ -25,244 +157,38 @@ def admin_dashboard():
 
     except Exception as e:
 
-        st.error(
-            f"Unable to load complaints: {e}"
-        )
+        st.error(f"Unable to load complaints: {e}")
 
         return
 
-    pending = 0
-    progress = 0
-    resolved = 0
+    if not complaints:
+
+        st.info("No complaints have been registered yet.")
+
+        return
+
+    filter_col, _ = st.columns([0.3, 0.7])
+
+    with filter_col:
+
+        status_filter = st.selectbox(
+            "Filter by status",
+            ["All"] + STATUS_OPTIONS
+        )
+
+    if status_filter != "All":
+
+        complaints = [
+            c for c in complaints
+            if c.get("status", "Pending") == status_filter
+        ]
+
+    if not complaints:
+
+        st.info(f"No complaints with status '{status_filter}'.")
+
+        return
 
     for complaint in complaints:
 
-        status = complaint.get(
-            "status",
-            "Pending"
-        )
-
-        if status == "Pending":
-
-            pending += 1
-
-        elif status == "In Progress":
-
-            progress += 1
-
-        elif status == "Resolved":
-
-            resolved += 1
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.metric(
-            "Pending",
-            pending
-        )
-
-    with col2:
-
-        st.metric(
-            "In Progress",
-            progress
-        )
-
-    with col3:
-
-        st.metric(
-            "Resolved",
-            resolved
-        )
-
-    st.markdown("---")
-
-    # =====================================================
-    # FIND COMPLAINT
-    # =====================================================
-
-    complaint_id = st.text_input(
-        "Complaint ID",
-        placeholder="CMP-XXXXXXXX"
-    )
-
-    if st.button(
-        "Find Complaint",
-        use_container_width=True
-    ):
-
-        if not complaint_id.strip():
-
-            st.warning(
-                "Please enter a Complaint ID."
-            )
-
-        else:
-
-            complaint = get_complaint(
-                complaint_id.strip().upper()
-            )
-
-            if complaint:
-
-                st.session_state.admin_complaint = complaint
-
-            else:
-
-                st.session_state.admin_complaint = None
-
-                st.error(
-                    "Complaint not found."
-                )
-
-    # =====================================================
-    # DISPLAY COMPLAINT
-    # =====================================================
-
-    complaint = st.session_state.get(
-        "admin_complaint"
-    )
-
-    if complaint:
-
-        st.markdown(
-            "### Complaint Details"
-        )
-
-        st.write(
-            f"**Complaint ID:** "
-            f"`{complaint.get('complaint_id')}`"
-        )
-
-        st.write(
-            f"**Customer:** "
-            f"{complaint.get('name', '')}"
-        )
-
-        st.write(
-            f"**Email:** "
-            f"{complaint.get('email', '')}"
-        )
-
-        st.write(
-            f"**Complaint:** "
-            f"{complaint.get('complaint', '')}"
-        )
-
-        current_status = complaint.get(
-            "status",
-            "Pending"
-        )
-
-        if current_status == "Resolved":
-
-            st.success(
-                f"Current Status: {current_status}"
-            )
-
-        elif current_status == "In Progress":
-
-            st.info(
-                f"Current Status: {current_status}"
-            )
-
-        else:
-
-            st.warning(
-                f"Current Status: {current_status}"
-            )
-
-        # =================================================
-        # STATUS DROPDOWN
-        # =================================================
-
-        statuses = [
-            "Pending",
-            "In Progress",
-            "Resolved"
-        ]
-
-        index = statuses.index(
-            current_status
-        ) if current_status in statuses else 0
-
-        new_status = st.selectbox(
-            "Change Status",
-            statuses,
-            index=index
-        )
-
-        # =================================================
-        # BLUE BUTTON
-        # =================================================
-
-        st.markdown(
-            """
-            <style>
-
-            div.stButton > button {
-                background-color: #3B4CE0;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }
-
-            div.stButton > button:hover {
-                background-color: #2E3BBE;
-                color: white;
-            }
-
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        if st.button(
-            "Change Status",
-            use_container_width=True
-        ):
-
-            complaint_id = complaint.get(
-                "complaint_id"
-            )
-
-            success = update_complaint_status(
-                complaint_id,
-                new_status
-            )
-
-            if success:
-
-                st.session_state.admin_complaint = (
-                    get_complaint(
-                        complaint_id
-                    )
-                )
-
-                st.session_state.status_updated = (
-                    new_status
-                )
-
-                st.rerun()
-
-            else:
-
-                st.error(
-                    "Complaint could not be updated."
-                )
-
-    # =====================================================
-    # SUCCESS MESSAGE AFTER RERUN
-    # =====================================================
-
-    if "status_updated" in st.session_state:
-
-        st.success(
-            "✓ Complaint status successfully "
-            f"changed to {st.session_state.status_updated}."
-        )
-
-        del st.session_state.status_updated
+        _render_status_updater(complaint, key_prefix="list")

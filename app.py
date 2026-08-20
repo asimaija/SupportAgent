@@ -1,4 +1,6 @@
 import streamlit as st
+import textwrap
+from pathlib import Path
 
 from agents.support_agent import answer_question
 from agents.complaint_detector import is_complaint
@@ -15,7 +17,6 @@ from customer.auth import (
 )
 
 from data.admin_auth import is_admin
-
 from admin.admin_dashboard import admin_dashboard
 
 
@@ -26,123 +27,736 @@ from admin.admin_dashboard import admin_dashboard
 st.set_page_config(
     page_title="AppInSnap Support",
     page_icon="⚡",
-    layout="centered"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+
+# =========================================================
+# COLORS  ("Signal Blue" theme — light, professional, B2B-tech)
+# =========================================================
+
+BG = "#F6F8FC"           # soft blue-white page background
+SIDEBAR = "#FFFFFF"
+CARD = "#FFFFFF"
+CARD_HOVER = "#EEF2FF"
+BORDER = "#E1E6F0"
+
+ACCENT = "#2451FF"        # primary brand blue
+ACCENT_DARK = "#1739C4"
+ACCENT_SOFT = "#EAF0FF"   # light blue tint for subtle fills
+TEAL = "#12B8A6"          # secondary accent
+
+WHITE = "#FFFFFF"
+TEXT = "#1A2233"          # near-navy, not pure black
+MUTED = "#6B7787"
+
+GREEN = "#16A34A"
+YELLOW = "#D97706"
+RED = "#DC2626"
+
+
+# =========================================================
+# LOGO
+# =========================================================
+
+LOGO_PATH = Path(r"D:\Projects\SupportAgent\images\logo.png")
+
+
+# =========================================================
+# HTML HELPER
+# =========================================================
+
+def build_complaint_card_html(complaint_id, complaint_text, status, customer_name):
+    """
+    Returns the HTML string for the "complaint registered" confirmation
+    card shown in chat right after a complaint is filed.
+    """
+
+    preview = complaint_text.strip()
+
+    if len(preview) > 220:
+
+        preview = preview[:220].rstrip() + "…"
+
+    return f"""
+    <div class="complaint-confirm-card">
+        <div class="complaint-confirm-title">
+            ✅ Complaint Registered
+        </div>
+        <div class="complaint-confirm-row">
+            <span class="complaint-confirm-label">Complaint ID</span>
+            <span class="complaint-confirm-value">{complaint_id}</span>
+        </div>
+        <div class="complaint-confirm-row">
+            <span class="complaint-confirm-label">Submitted by</span>
+            <span class="complaint-confirm-value">{customer_name}</span>
+        </div>
+        <div class="complaint-confirm-row">
+            <span class="complaint-confirm-label">Status</span>
+            <span class="complaint-confirm-value">{status}</span>
+        </div>
+        <div class="complaint-confirm-row">
+            <span class="complaint-confirm-label">Details</span>
+            <span class="complaint-confirm-value">{preview}</span>
+        </div>
+    </div>
+    """
+
+
+def render_html(content):
+
+    text = textwrap.dedent(content)
+
+    # Blank lines inside a raw HTML block make Streamlit's markdown
+    # parser stop treating the rest as HTML and render it as a code
+    # block instead. Stripping blank lines keeps it as real HTML.
+    lines = [
+        line for line in text.split("\n")
+        if line.strip() != ""
+    ]
+
+    st.markdown(
+        "\n".join(lines),
+        unsafe_allow_html=True
+    )
 
 
 # =========================================================
 # CSS
 # =========================================================
 
-st.markdown(
-    """
+render_html(
+    f"""
     <style>
 
-    /* -----------------------------------------------------
-       MAIN CONTAINER
-    ----------------------------------------------------- */
+    /* =====================================================
+       GLOBAL
+    ===================================================== */
 
-    .block-container {
-        max-width: 850px;
-        padding-top: 25px;
-        padding-bottom: 40px;
-    }
+    html,
+    body,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stApp"],
+    .stApp {{
 
+        background: {BG} !important;
 
-    /* -----------------------------------------------------
-       GENERAL TEXT
-    ----------------------------------------------------- */
+        color: {TEXT} !important;
 
-    body {
-        color: #000000;
-    }
-
-    p {
-        color: #000000;
-    }
+        font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+    }}
 
 
-    /* -----------------------------------------------------
-       CHAT TEXT
-    ----------------------------------------------------- */
+    .main {{
 
-    [data-testid="stChatMessage"] {
-        color: #000000 !important;
-    }
+        background: {BG} !important;
+    }}
 
-    [data-testid="stChatMessage"] p {
-        color: #000000 !important;
-        line-height: 1.6;
-    }
 
-    [data-testid="stChatMessage"] li {
-        color: #000000 !important;
-        line-height: 1.6;
-    }
+    .block-container {{
 
-    [data-testid="stChatMessage"] strong {
-        color: #000000 !important;
+        max-width: 1080px !important;
+
+        padding-top: 24px !important;
+
+        padding-bottom: 100px !important;
+    }}
+
+
+    [data-testid="stHeader"] {{
+
+        background: {BG} !important;
+    }}
+
+
+    [data-testid="stToolbar"] {{
+
+        display: none !important;
+    }}
+
+
+    footer {{
+
+        display: none !important;
+    }}
+
+
+    /* =====================================================
+       SIDEBAR
+    ===================================================== */
+
+    [data-testid="stSidebar"] {{
+
+        background: {SIDEBAR} !important;
+
+        border-right: 1px solid {BORDER} !important;
+
+        min-width: 270px !important;
+
+        max-width: 270px !important;
+
+        margin-left: 0px !important;
+
+        transform: none !important;
+
+        visibility: visible !important;
+    }}
+
+
+    /* Force the sidebar to always stay open — hide the collapse
+       control so "Chat Support / Check Status" can't be tucked
+       away out of sight. */
+
+    [data-testid="collapsedControl"] {{
+
+        display: none !important;
+    }}
+
+
+    [data-testid="stSidebar"] > div:first-child {{
+
+        background: {SIDEBAR} !important;
+
+        padding-top: 20px !important;
+    }}
+
+
+    [data-testid="stSidebar"] * {{
+
+        color: {TEXT};
+    }}
+
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {{
+
+        background: transparent !important;
+
+        border-radius: 10px !important;
+
+        padding: 10px 12px !important;
+
+        margin-bottom: 5px !important;
+
+        color: {TEXT} !important;
+    }}
+
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
+
+        background: {CARD} !important;
+    }}
+
+
+    /* =====================================================
+       APP HEADER
+    ===================================================== */
+
+    .app-header {{
+
+        height: 70px;
+
+        display: flex;
+
+        align-items: center;
+
+        padding: 0 10px;
+
+        border-bottom: 1px solid {BORDER};
+
+        margin-bottom: 30px;
+    }}
+
+
+    .app-logo {{
+
+        width: 40px;
+
+        height: 40px;
+
+        object-fit: contain;
+
+        margin-right: 14px;
+    }}
+
+
+    .app-title {{
+
+        color: {TEXT};
+
+        font-size: 22px;
+
         font-weight: 700;
-    }
 
-    [data-testid="stChatMessage"] em {
-        color: #000000 !important;
-    }
+        letter-spacing: -0.4px;
+    }}
 
 
-    /* -----------------------------------------------------
-       BUTTON
-    ----------------------------------------------------- */
+    .header-spacer {{
 
-    div.stButton > button {
-        background-color: #3B4CE0;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-
-    div.stButton > button:hover {
-        background-color: #2E3BBE;
-        color: white;
-    }
+        flex: 1;
+    }}
 
 
-    /* -----------------------------------------------------
+    .header-user {{
+
+        color: {MUTED};
+
+        font-size: 14px;
+
+        margin-right: 10px;
+    }}
+
+
+    /* =====================================================
+       WELCOME
+    ===================================================== */
+
+    .welcome {{
+
+        text-align: center;
+
+        margin-top: 60px;
+
+        margin-bottom: 40px;
+    }}
+
+
+    .welcome h1 {{
+
+        color: {TEXT} !important;
+
+        font-size: 38px !important;
+
+        font-weight: 700 !important;
+
+        letter-spacing: -1px;
+
+        margin-bottom: 10px !important;
+    }}
+
+
+    .welcome p {{
+
+        color: {MUTED} !important;
+
+        font-size: 16px;
+
+        margin: 0 !important;
+    }}
+
+
+    /* =====================================================
+       LANDING MENU CARDS (Customer / Admin)
+    ===================================================== */
+
+    .landing-wrap {{
+
+        max-width: 620px;
+
+        margin: 0 auto;
+    }}
+
+
+    div.stButton {{
+
+        margin-bottom: 12px !important;
+    }}
+
+
+    div.stButton > button {{
+
+        width: 100% !important;
+
+        background: {CARD} !important;
+
+        color: {TEXT} !important;
+
+        border: 1px solid {BORDER} !important;
+
+        border-radius: 16px !important;
+
+        padding: 16px 20px !important;
+
+        font-size: 16px !important;
+
+        font-weight: 500 !important;
+
+        text-align: left !important;
+
+        transition: all 0.15s ease !important;
+
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+    }}
+
+
+    div.stButton > button:hover {{
+
+        background: {CARD_HOVER} !important;
+
+        border-color: {ACCENT} !important;
+
+        color: {ACCENT_DARK} !important;
+
+        box-shadow: 0 4px 12px rgba(36, 81, 255, 0.12) !important;
+    }}
+
+
+    div.stButton > button:focus {{
+
+        color: {ACCENT_DARK} !important;
+
+        border-color: {ACCENT} !important;
+
+        box-shadow: 0 0 0 1px {ACCENT} !important;
+    }}
+
+
+    .menu-card {{
+
+        min-height: 120px !important;
+
+        font-size: 17px !important;
+    }}
+
+
+    /* =====================================================
+       TABS (Login / Register)
+    ===================================================== */
+
+    [data-testid="stTabs"] button {{
+
+        color: {MUTED} !important;
+
+        font-weight: 600 !important;
+    }}
+
+
+    [data-testid="stTabs"] button[aria-selected="true"] {{
+
+        color: {ACCENT} !important;
+
+        border-bottom-color: {ACCENT} !important;
+    }}
+
+
+    /* =====================================================
+       CHAT
+    ===================================================== */
+
+    [data-testid="stChatMessage"] {{
+
+        background: transparent !important;
+
+        color: {TEXT} !important;
+
+        border: none !important;
+    }}
+
+
+    [data-testid="stChatMessageContent"] {{
+
+        color: {TEXT} !important;
+    }}
+
+
+    [data-testid="stChatMessage"] p,
+    [data-testid="stChatMessage"] li {{
+
+        color: {TEXT} !important;
+
+        line-height: 1.65 !important;
+    }}
+
+
+    [data-testid="stChatMessage"] strong {{
+
+        color: {TEXT} !important;
+    }}
+
+
+    /* =====================================================
        CHAT INPUT
-    ----------------------------------------------------- */
+    ===================================================== */
 
-    [data-testid="stChatInput"] textarea {
-        color: #000000 !important;
-    }
+    [data-testid="stChatInput"] {{
 
-    [data-testid="stChatInput"] textarea::placeholder {
-        color: #777777 !important;
-    }
+        background: {CARD} !important;
+
+        border: 1px solid {BORDER} !important;
+
+        border-radius: 22px !important;
+
+        padding: 4px !important;
+    }}
 
 
-    /* -----------------------------------------------------
-       STATUS COLORS
-    ----------------------------------------------------- */
+    [data-testid="stChatInput"] textarea {{
 
-    .status-pending {
-        color: #A87A1D;
+        background: {CARD} !important;
+
+        color: {TEXT} !important;
+
+        font-size: 16px !important;
+    }}
+
+
+    [data-testid="stChatInput"] textarea::placeholder {{
+
+        color: #A5AEC0 !important;
+    }}
+
+
+    /* =====================================================
+       INPUT FIELDS
+    ===================================================== */
+
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea {{
+
+        background: {CARD} !important;
+
+        color: {TEXT} !important;
+
+        border: 1px solid {BORDER} !important;
+
+        border-radius: 10px !important;
+    }}
+
+
+    [data-testid="stTextInput"] input:focus,
+    [data-testid="stTextArea"] textarea:focus {{
+
+        border-color: {ACCENT} !important;
+
+        box-shadow: 0 0 0 1px {ACCENT} !important;
+    }}
+
+
+    [data-testid="stTextInput"] label,
+    [data-testid="stTextArea"] label {{
+
+        color: {TEXT} !important;
+    }}
+
+
+    /* =====================================================
+       PRIMARY BUTTON
+    ===================================================== */
+
+    button[kind="primary"] {{
+
+        background: {ACCENT} !important;
+
+        color: {WHITE} !important;
+
+        border: none !important;
+
+        border-radius: 10px !important;
+
+        font-weight: 700 !important;
+    }}
+
+
+    button[kind="primary"]:hover {{
+
+        background: {ACCENT_DARK} !important;
+    }}
+
+
+    /* =====================================================
+       ACCOUNT PAGE
+    ===================================================== */
+
+    .account-title {{
+
+        text-align: center;
+
+        color: {TEXT};
+
+        font-size: 32px;
+
         font-weight: 700;
-    }
 
-    .status-progress {
-        color: #3B4CE0;
-        font-weight: 700;
-    }
+        margin-top: 15px;
 
-    .status-resolved {
-        color: #1C8A5E;
+        margin-bottom: 6px;
+    }}
+
+
+    .account-subtitle {{
+
+        text-align: center;
+
+        color: {MUTED};
+
+        font-size: 15px;
+
+        margin-bottom: 30px;
+    }}
+
+
+    .back-link {{
+
+        color: {MUTED};
+
+        font-size: 14px;
+
+        margin-bottom: 18px;
+    }}
+
+
+    /* =====================================================
+       STATUS CARDS
+    ===================================================== */
+
+    .complaint-card {{
+
+        background: {CARD};
+
+        border: 1px solid {BORDER};
+
+        border-radius: 16px;
+
+        padding: 20px;
+
+        margin-bottom: 15px;
+
+        box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+    }}
+
+
+    /* Card used to confirm a newly-registered complaint in chat */
+
+    .complaint-confirm-card {{
+
+        background: {ACCENT_SOFT};
+
+        border: 1px solid {ACCENT};
+
+        border-radius: 16px;
+
+        padding: 20px 22px;
+
+        margin: 6px 0 4px 0;
+    }}
+
+
+    .complaint-confirm-title {{
+
+        color: {ACCENT_DARK};
+
+        font-size: 15px;
+
         font-weight: 700;
-    }
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 6px;
+
+        margin-bottom: 12px;
+    }}
+
+
+    .complaint-confirm-row {{
+
+        display: flex;
+
+        justify-content: space-between;
+
+        padding: 6px 0;
+
+        border-bottom: 1px solid rgba(36, 81, 255, 0.12);
+    }}
+
+
+    .complaint-confirm-row:last-child {{
+
+        border-bottom: none;
+    }}
+
+
+    .complaint-confirm-label {{
+
+        color: {MUTED};
+
+        font-size: 13px;
+    }}
+
+
+    .complaint-confirm-value {{
+
+        color: {TEXT};
+
+        font-size: 13px;
+
+        font-weight: 600;
+
+        text-align: right;
+
+        max-width: 65%;
+    }}
+
+
+    .complaint-id {{
+
+        color: {ACCENT};
+
+        font-size: 16px;
+
+        font-weight: 700;
+    }}
+
+
+    .complaint-description {{
+
+        color: {TEXT};
+
+        margin-top: 12px;
+
+        line-height: 1.6;
+    }}
+
+
+    .complaint-status {{
+
+        margin-top: 12px;
+
+        color: {MUTED};
+    }}
+
+
+    /* =====================================================
+       MOBILE
+    ===================================================== */
+
+    @media (max-width: 700px) {{
+
+        .block-container {{
+
+            padding-left: 15px !important;
+
+            padding-right: 15px !important;
+        }}
+
+
+        .welcome h1 {{
+
+            font-size: 28px !important;
+        }}
+
+
+        .app-title {{
+
+            font-size: 19px;
+        }}
+
+    }}
 
     </style>
-    """,
-    unsafe_allow_html=True
+    """
 )
 
 
@@ -152,22 +766,35 @@ st.markdown(
 
 defaults = {
 
-    # Customer
     "customer_logged_in": False,
+
     "customer_name": "",
+
     "customer_email": "",
+
     "customer_user_id": "",
+
     "id_token": "",
 
-    # Chat
     "messages": [],
+
     "waiting_for_complaint": False,
 
-    # Admin
+    "complaint_prompt_sent": False,
+
     "admin_logged_in": False,
+
     "admin_user_id": "",
+
     "admin_email": "",
-    "admin_id_token": ""
+
+    "admin_id_token": "",
+
+    # Which top-level landing menu the visitor picked:
+    # None -> show the Customer / Admin chooser
+    # "customer" -> show Login / Register
+    # "admin" -> show admin email/password form
+    "account_view": None
 }
 
 
@@ -182,406 +809,336 @@ for key, value in defaults.items():
 # HEADER
 # =========================================================
 
-st.title("AppInSnap Support")
+def show_header():
+
+    col_logo, col_title, col_spacer, col_user = st.columns(
+        [0.06, 0.5, 0.34, 0.1]
+    )
+
+    with col_logo:
+
+        if LOGO_PATH.exists():
+
+            st.image(str(LOGO_PATH), width=40)
+
+        else:
+
+            render_html(
+                '<div style="font-size:30px; margin-top:6px;">⚡</div>'
+            )
+
+    with col_title:
+
+        render_html(
+            '<div class="app-title" style="margin-top:10px;">'
+            'AppInSnap Support</div>'
+        )
+
+    with col_user:
+
+        if st.session_state.customer_logged_in:
+
+            render_html(
+                f'<div class="header-user" style="margin-top:14px; '
+                f'text-align:right;">{st.session_state.customer_name}</div>'
+            )
+
+        elif st.session_state.admin_logged_in:
+
+            render_html(
+                f'<div class="header-user" style="margin-top:14px; '
+                f'text-align:right;">{st.session_state.admin_email}</div>'
+            )
+
+
+show_header()
 
 
 # =========================================================
-# CUSTOMER NOT LOGGED IN
+# NOT LOGGED IN (neither customer nor admin)
 # =========================================================
 
-if not st.session_state.customer_logged_in:
-
-    # -----------------------------------------------------
-    # SIDEBAR
-    # -----------------------------------------------------
-
-    st.sidebar.image(
-        "images/logo.png",
-        width=130
-    )
-
-    st.sidebar.markdown("---")
-
-    account_page = st.sidebar.radio(
-        "Customer Account",
-        [
-            "Login",
-            "Register",
-            "Staff / Admin"
-        ]
-    )
-
+if not st.session_state.customer_logged_in and not st.session_state.admin_logged_in:
 
     # =====================================================
-    # CUSTOMER REGISTER
+    # TOP-LEVEL LANDING MENU: Customer / Admin
     # =====================================================
 
-    if account_page == "Register":
+    if st.session_state.account_view is None:
 
-        st.header(
-            "Create Customer Account"
+        render_html(
+            """
+            <div class="welcome">
+                <h1>Welcome to AppInSnap Support</h1>
+                <p>Choose how you'd like to continue.</p>
+            </div>
+            """
         )
 
-        st.caption(
-            "Register before using AppInSnap Support."
-        )
+        render_html('<div class="landing-wrap">')
 
-        with st.form(
-            "customer_register"
-        ):
+        col_a, col_b = st.columns(2)
 
-            name = st.text_input(
-                "Full Name"
-            )
+        with col_a:
 
-            email = st.text_input(
-                "Email"
-            )
-
-            password = st.text_input(
-                "Password",
-                type="password"
-            )
-
-            confirm_password = st.text_input(
-                "Confirm Password",
-                type="password"
-            )
-
-            submit = st.form_submit_button(
-                "Create Account",
+            if st.button(
+                "👤   Customer\n\nLogin or create an account to chat with support",
+                key="menu_customer",
                 use_container_width=True
-            )
+            ):
 
+                st.session_state.account_view = "customer"
+
+                st.rerun()
+
+        with col_b:
+
+            if st.button(
+                "🛠️   Admin / Staff\n\nSign in with your staff email and password",
+                key="menu_admin",
+                use_container_width=True
+            ):
+
+                st.session_state.account_view = "admin"
+
+                st.rerun()
+
+        render_html('</div>')
+
+
+    # =====================================================
+    # CUSTOMER: LOGIN / REGISTER
+    # =====================================================
+
+    elif st.session_state.account_view == "customer":
+
+        if st.button("← Back", key="back_from_customer"):
+
+            st.session_state.account_view = None
+
+            st.rerun()
+
+        render_html(
+            """
+            <div class="account-title">Customer Account</div>
+            <div class="account-subtitle">
+                Login or create an account to chat with AppInSnap Support
+            </div>
+            """
+        )
+
+        login_tab, register_tab = st.tabs(["Login", "Register"])
 
         # -------------------------------------------------
-        # REGISTER PROCESS
+        # LOGIN
         # -------------------------------------------------
 
-        if submit:
+        with login_tab:
 
-            if not name.strip():
+            with st.form("customer_login"):
 
-                st.error(
-                    "Please enter your name."
+                email = st.text_input("Email")
+
+                password = st.text_input("Password", type="password")
+
+                login = st.form_submit_button(
+                    "Login",
+                    use_container_width=True
                 )
 
-            elif not email.strip():
+            if login:
 
-                st.error(
-                    "Please enter your email."
-                )
+                if not email.strip():
 
-            elif len(password) < 6:
+                    st.error("Please enter your email.")
 
-                st.error(
-                    "Password must contain at least 6 characters."
-                )
+                elif not password:
 
-            elif password != confirm_password:
-
-                st.error(
-                    "Passwords do not match."
-                )
-
-            else:
-
-                result = register_customer(
-                    name.strip(),
-                    email.strip(),
-                    password
-                )
-
-                if result.get("success"):
-
-                    st.session_state.customer_logged_in = True
-
-                    st.session_state.customer_name = (
-                        name.strip()
-                    )
-
-                    st.session_state.customer_email = (
-                        email.strip()
-                    )
-
-                    st.session_state.customer_user_id = (
-                        result.get("localId", "")
-                    )
-
-                    st.session_state.id_token = (
-                        result.get("idToken", "")
-                    )
-
-                    st.session_state.messages = []
-
-                    st.session_state.waiting_for_complaint = False
-
-                    st.success(
-                        "Account created successfully!"
-                    )
-
-                    st.rerun()
+                    st.error("Please enter your password.")
 
                 else:
 
-                    st.error(
-                        result.get(
-                            "error",
-                            "Registration failed."
-                        )
-                    )
+                    result = login_customer(email.strip(), password)
 
+                    if result.get("success"):
 
-    # =====================================================
-    # CUSTOMER LOGIN
-    # =====================================================
+                        st.session_state.customer_logged_in = True
+                        st.session_state.customer_email = result.get("email", email.strip())
+                        st.session_state.customer_user_id = result.get("localId", "")
+                        st.session_state.id_token = result.get("idToken", "")
+                        st.session_state.customer_name = email.split("@")[0]
+                        st.session_state.messages = []
+                        st.session_state.waiting_for_complaint = False
+                        st.session_state.complaint_prompt_sent = False
+                        st.session_state.account_view = None
 
-    elif account_page == "Login":
+                        st.rerun()
 
-        st.header(
-            "Customer Login"
-        )
+                    else:
 
-        st.caption(
-            "Login to access Chat Support, "
-            "Register Complaint and Check Status."
-        )
-
-        with st.form(
-            "customer_login"
-        ):
-
-            email = st.text_input(
-                "Email"
-            )
-
-            password = st.text_input(
-                "Password",
-                type="password"
-            )
-
-            login = st.form_submit_button(
-                "Login",
-                use_container_width=True
-            )
-
+                        st.error(result.get("error", "Login failed."))
 
         # -------------------------------------------------
-        # LOGIN PROCESS
+        # REGISTER
         # -------------------------------------------------
 
-        if login:
+        with register_tab:
 
-            if not email.strip() or not password:
+            with st.form("customer_register"):
 
-                st.error(
-                    "Please enter email and password."
+                name = st.text_input("Full Name")
+
+                reg_email = st.text_input("Email", key="reg_email")
+
+                reg_password = st.text_input(
+                    "Password", type="password", key="reg_password"
                 )
 
-            else:
-
-                result = login_customer(
-                    email.strip(),
-                    password
+                confirm_password = st.text_input(
+                    "Confirm Password", type="password"
                 )
 
-                if result.get("success"):
+                submit = st.form_submit_button(
+                    "Create Account",
+                    use_container_width=True
+                )
 
-                    st.session_state.customer_logged_in = True
+            if submit:
 
-                    st.session_state.customer_email = (
-                        result.get(
-                            "email",
-                            email.strip()
-                        )
-                    )
+                if not name.strip():
 
-                    st.session_state.customer_user_id = (
-                        result.get(
-                            "localId",
-                            ""
-                        )
-                    )
+                    st.error("Please enter your name.")
 
-                    st.session_state.id_token = (
-                        result.get(
-                            "idToken",
-                            ""
-                        )
-                    )
+                elif not reg_email.strip():
 
-                    # Firebase login response does not
-                    # contain our profile name.
-                    st.session_state.customer_name = (
-                        email.split("@")[0]
-                    )
+                    st.error("Please enter your email.")
 
-                    st.session_state.messages = []
+                elif len(reg_password) < 6:
 
-                    st.session_state.waiting_for_complaint = False
+                    st.error("Password must contain at least 6 characters.")
 
-                    st.success(
-                        "Login successful!"
-                    )
+                elif reg_password != confirm_password:
 
-                    st.rerun()
+                    st.error("Passwords do not match.")
 
                 else:
 
-                    st.error(
-                        result.get(
-                            "error",
-                            "Login failed."
-                        )
+                    result = register_customer(
+                        name.strip(), reg_email.strip(), reg_password
                     )
+
+                    if result.get("success"):
+
+                        st.session_state.customer_logged_in = True
+                        st.session_state.customer_name = name.strip()
+                        st.session_state.customer_email = reg_email.strip()
+                        st.session_state.customer_user_id = result.get("localId", "")
+                        st.session_state.id_token = result.get("idToken", "")
+                        st.session_state.messages = []
+                        st.session_state.waiting_for_complaint = False
+                        st.session_state.complaint_prompt_sent = False
+                        st.session_state.account_view = None
+
+                        st.rerun()
+
+                    else:
+
+                        st.error(result.get("error", "Registration failed."))
 
 
     # =====================================================
     # ADMIN LOGIN
     # =====================================================
 
-    else:
+    elif st.session_state.account_view == "admin":
 
-        st.header(
-            "Staff / Admin"
+        if st.button("← Back", key="back_from_admin"):
+
+            st.session_state.account_view = None
+
+            st.rerun()
+
+        render_html(
+            """
+            <div class="account-title">Staff / Admin</div>
+            <div class="account-subtitle">Authorized staff only</div>
+            """
         )
 
-        st.caption(
-            "Authorized staff only."
-        )
+        with st.form("admin_login"):
 
-        with st.form(
-            "admin_login"
-        ):
+            admin_email = st.text_input("Admin Email")
 
-            admin_email = st.text_input(
-                "Admin Email"
-            )
-
-            admin_password = st.text_input(
-                "Admin Password",
-                type="password"
-            )
+            admin_password = st.text_input("Admin Password", type="password")
 
             admin_login = st.form_submit_button(
                 "Admin Login",
                 use_container_width=True
             )
 
-
-        # -------------------------------------------------
-        # ADMIN LOGIN PROCESS
-        # -------------------------------------------------
-
         if admin_login:
 
             if not admin_email.strip():
 
-                st.error(
-                    "Please enter your admin email."
-                )
+                st.error("Please enter your admin email.")
 
             elif not admin_password:
 
-                st.error(
-                    "Please enter your admin password."
-                )
+                st.error("Please enter your admin password.")
 
             else:
 
-                # -----------------------------------------
-                # FIREBASE AUTHENTICATION
-                # -----------------------------------------
-
-                result = login_firebase_user(
-                    admin_email.strip(),
-                    admin_password
-                )
+                result = login_firebase_user(admin_email.strip(), admin_password)
 
                 if not result.get("success"):
 
-                    st.error(
-                        result.get(
-                            "error",
-                            "Admin login failed."
-                        )
-                    )
+                    st.error(result.get("error", "Admin login failed."))
 
                 else:
 
-                    user_id = result.get(
-                        "localId",
-                        ""
-                    )
-
-                    # -----------------------------------------
-                    # FIRESTORE ADMIN AUTHORIZATION
-                    # -----------------------------------------
+                    user_id = result.get("localId", "")
 
                     if is_admin(user_id):
 
                         st.session_state.admin_logged_in = True
-
-                        st.session_state.admin_user_id = (
-                            user_id
-                        )
-
-                        st.session_state.admin_email = (
-                            result.get(
-                                "email",
-                                admin_email.strip()
-                            )
-                        )
-
-                        st.session_state.admin_id_token = (
-                            result.get(
-                                "idToken",
-                                ""
-                            )
-                        )
-
-                        st.success(
-                            "Admin login successful!"
-                        )
+                        st.session_state.admin_user_id = user_id
+                        st.session_state.admin_email = result.get("email", admin_email.strip())
+                        st.session_state.admin_id_token = result.get("idToken", "")
+                        st.session_state.account_view = None
 
                         st.rerun()
 
                     else:
 
-                        st.error(
-                            "This account does not have admin access."
-                        )
+                        st.error("This account does not have admin access.")
 
 
-    # =====================================================
-    # ADMIN DASHBOARD
-    # =====================================================
+# =========================================================
+# ADMIN DASHBOARD
+# =========================================================
 
-    if st.session_state.admin_logged_in:
+elif st.session_state.admin_logged_in:
 
-        st.markdown("---")
+    st.sidebar.markdown("## 🛠️ AppInSnap Admin")
 
-        st.caption(
-            f"Logged in as: "
-            f"{st.session_state.admin_email}"
-        )
+    st.sidebar.caption(f"Logged in as: {st.session_state.admin_email}")
 
-        if st.button(
-            "Logout Admin",
-            use_container_width=True
-        ):
+    if st.sidebar.button("Logout Admin", use_container_width=True):
 
-            st.session_state.admin_logged_in = False
+        st.session_state.admin_logged_in = False
+        st.session_state.admin_user_id = ""
+        st.session_state.admin_email = ""
+        st.session_state.admin_id_token = ""
+        st.session_state.account_view = None
 
-            st.session_state.admin_user_id = ""
+        st.rerun()
 
-            st.session_state.admin_email = ""
+    st.sidebar.markdown("---")
 
-            st.session_state.admin_id_token = ""
-
-            st.rerun()
-
-        admin_dashboard()
+    # admin_dashboard() is expected to render its own internal
+    # navigation, including the complaint list + status-update view.
+    # See admin/admin_dashboard.py for that page.
+    admin_dashboard()
 
 
 # =========================================================
@@ -594,334 +1151,328 @@ else:
     # CUSTOMER SIDEBAR
     # =====================================================
 
-    st.sidebar.image(
-        "images/logo.png",
-        width=130
+    st.sidebar.markdown("## ⚡ AppInSnap")
+
+    st.sidebar.markdown(
+        f"""
+        <div style="
+            background: {CARD};
+            border: 1px solid {BORDER};
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 18px;
+        ">
+            <div style="color: {MUTED}; font-size: 12px;">
+                Logged in as
+            </div>
+            <div style="color: {TEXT}; font-size: 15px; font-weight: 600; margin-top: 4px;">
+                {st.session_state.customer_name}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
-    st.sidebar.success(
-        f"Logged in as "
-        f"{st.session_state.customer_name}"
+    st.sidebar.markdown(
+        f"""
+        <div style="color: {ACCENT}; font-size: 13px; font-weight: 700; margin-bottom: 8px;">
+            Customer Menu
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
-    st.sidebar.markdown("---")
-
+    # Only two customer-facing pages. There is intentionally no
+    # standalone "Register Complaint" page — complaints can only be
+    # filed by chatting with support (see the Chat Support flow below).
     page = st.sidebar.radio(
         "Customer Menu",
-        [
-            "Chat Support",
-            "Register Complaint",
-            "Check Status"
-        ]
+        ["Chat Support", "Check Status"],
+        label_visibility="collapsed"
     )
 
     st.sidebar.markdown("---")
 
-
-    # =====================================================
-    # LOGOUT
-    # =====================================================
-
-    if st.sidebar.button(
-        "Logout",
-        use_container_width=True
-    ):
+    if st.sidebar.button("Logout", use_container_width=True):
 
         st.session_state.customer_logged_in = False
-
         st.session_state.customer_name = ""
-
         st.session_state.customer_email = ""
-
         st.session_state.customer_user_id = ""
-
         st.session_state.id_token = ""
-
         st.session_state.messages = []
-
         st.session_state.waiting_for_complaint = False
+        st.session_state.complaint_prompt_sent = False
+        st.session_state.account_view = None
 
         st.rerun()
+
+    if page == "Chat Support":
+
+        chat_mode = True
+
+        if not st.session_state.waiting_for_complaint:
+
+            st.session_state.complaint_prompt_sent = False
+
+    else:
+
+        chat_mode = False
 
 
     # =====================================================
     # CHAT SUPPORT
     # =====================================================
 
-    if page == "Chat Support":
+    if chat_mode:
 
-        st.header(
-            "Chat Support"
-        )
+        if not st.session_state.messages:
 
-        st.caption(
-            "Ask anything about AppInSnap or report a problem."
-        )
+            render_html(
+                """
+                <div class="welcome">
+                    <h1>How can we help you?</h1>
+                    <p>Ask anything about AppInSnap or report a problem.</p>
+                </div>
+                """
+            )
+
+            if st.button(
+                "💬   I want to ask about AppInSnap",
+                key="suggestion_ask",
+                use_container_width=True
+            ):
+
+                question = "I want to ask about AppInSnap"
+
+                st.session_state.messages.append(
+                    {"role": "user", "content": question}
+                )
+
+                with st.chat_message("user"):
+
+                    st.markdown(question)
+
+                with st.chat_message("assistant"):
+
+                    with st.spinner("Thinking..."):
+
+                        answer = answer_question(question)
+
+                    st.markdown(answer)
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": answer}
+                )
+
+                st.rerun()
+
+            if st.button(
+                "⚠️   I want to report a problem",
+                key="suggestion_problem",
+                use_container_width=True
+            ):
+
+                st.session_state.waiting_for_complaint = True
+
+                message = (
+                    "I'm sorry you're experiencing a problem. "
+                    "I can help you register a complaint.\n\n"
+                    "Please describe your problem in detail."
+                )
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": message}
+                )
+
+                st.rerun()
+
+            if st.button(
+                "📝   I want to register a complaint",
+                key="suggestion_complaint",
+                use_container_width=True
+            ):
+
+                st.session_state.waiting_for_complaint = True
+
+                message = (
+                    "Sure, I can help you register a complaint. 📝\n\n"
+                    "Please describe your problem in detail."
+                )
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": message}
+                )
+
+                st.rerun()
+
+            if st.button(
+                "🔎   I want to check my complaint status",
+                key="suggestion_status",
+                use_container_width=True
+            ):
+
+                st.info(
+                    "Please select **Check Status** from the Customer Menu."
+                )
 
 
         # -------------------------------------------------
-        # DISPLAY CHAT HISTORY
+        # CHAT HISTORY
         # -------------------------------------------------
 
         for message in st.session_state.messages:
 
-            with st.chat_message(
-                message["role"]
-            ):
+            with st.chat_message(message["role"]):
 
-                st.markdown(
-                    message["content"]
-                )
+                if message.get("is_html"):
+
+                    render_html(message["content"])
+
+                else:
+
+                    st.markdown(message["content"])
 
 
         # -------------------------------------------------
         # CHAT INPUT
         # -------------------------------------------------
 
-        question = st.chat_input(
-            "Ask about AppInSnap..."
-        )
-
+        question = st.chat_input("Message AppInSnap Support...")
 
         if question:
 
             question = question.strip()
 
+            if not question:
 
-            # ---------------------------------------------
-            # SAVE USER MESSAGE
-            # ---------------------------------------------
+                st.stop()
 
             st.session_state.messages.append(
-                {
-                    "role": "user",
-                    "content": question
-                }
+                {"role": "user", "content": question}
             )
-
 
             with st.chat_message("user"):
 
-                st.markdown(
-                    question
-                )
+                st.markdown(question)
 
-
-            # =================================================
-            # USER IS PROVIDING COMPLAINT DETAILS
-            # =================================================
+            # ===============================================
+            # COMPLAINT DETAILS (only entry point for filing one)
+            # ===============================================
 
             if st.session_state.waiting_for_complaint:
-
-                complaint = question
-
-                name = st.session_state.customer_name
-
-                email = st.session_state.customer_email
-
-                user_id = st.session_state.customer_user_id
-
-
-                try:
-
-                    complaint_id = register_complaint(
-                        name,
-                        complaint,
-                        email,
-                        user_id
-                    )
-
-
-                    st.session_state.waiting_for_complaint = False
-
-
-                    response = (
-                        "Your complaint has been registered successfully.\n\n"
-                        f"**Complaint ID:** `{complaint_id}`\n\n"
-                        "**Status:** Pending\n\n"
-                        "You can check the status from the "
-                        "**Check Status** page."
-                    )
-
-
-                    with st.chat_message(
-                        "assistant"
-                    ):
-
-                        st.success(
-                            response
-                        )
-
-
-                    st.session_state.messages.append(
-                        {
-                            "role": "assistant",
-                            "content": response
-                        }
-                    )
-
-
-                except Exception as e:
-
-                    with st.chat_message(
-                        "assistant"
-                    ):
-
-                        st.error(
-                            f"Unable to register complaint: {e}"
-                        )
-
-
-            # =================================================
-            # NEW COMPLAINT DETECTED
-            # =================================================
-
-            elif is_complaint(question):
-
-                st.session_state.waiting_for_complaint = True
-
-
-                response = (
-                    "I'm sorry you're experiencing a problem. "
-                    "I can help you register a complaint.\n\n"
-                    f"You're logged in as "
-                    f"**{st.session_state.customer_name}**.\n\n"
-                    "Please describe your complaint in detail."
-                )
-
-
-                with st.chat_message(
-                    "assistant"
-                ):
-
-                    st.markdown(
-                        response
-                    )
-
-
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": response
-                    }
-                )
-
-
-            # =================================================
-            # NORMAL AI / RAG QUESTION
-            # =================================================
-
-            else:
-
-                with st.chat_message(
-                    "assistant"
-                ):
-
-                    with st.spinner(
-                        "Thinking..."
-                    ):
-
-                        answer = answer_question(
-                            question
-                        )
-
-
-                    st.markdown(
-                        answer
-                    )
-
-
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": answer
-                    }
-                )
-
-
-    # =====================================================
-    # REGISTER COMPLAINT
-    # =====================================================
-
-    elif page == "Register Complaint":
-
-        st.header(
-            "Register Complaint"
-        )
-
-        st.caption(
-            "Your account information will be attached automatically."
-        )
-
-
-        st.info(
-            f"Customer: "
-            f"{st.session_state.customer_name}"
-        )
-
-        st.info(
-            f"Email: "
-            f"{st.session_state.customer_email}"
-        )
-
-
-        with st.form(
-            "customer_complaint"
-        ):
-
-            complaint = st.text_area(
-                "Complaint Details",
-                placeholder="Describe your problem...",
-                height=160
-            )
-
-            submit = st.form_submit_button(
-                "Submit Complaint",
-                use_container_width=True
-            )
-
-
-        if submit:
-
-            if not complaint.strip():
-
-                st.error(
-                    "Please describe your complaint."
-                )
-
-            else:
 
                 try:
 
                     complaint_id = register_complaint(
                         st.session_state.customer_name,
-                        complaint.strip(),
+                        question,
                         st.session_state.customer_email,
                         st.session_state.customer_user_id
                     )
 
+                    st.session_state.waiting_for_complaint = False
+                    st.session_state.complaint_prompt_sent = False
 
-                    st.success(
-                        "Complaint registered successfully!"
+                    card_html = build_complaint_card_html(
+                        complaint_id,
+                        question,
+                        "Pending",
+                        st.session_state.customer_name
                     )
 
+                    with st.chat_message("assistant"):
 
-                    st.info(
-                        f"""
-**Complaint ID:** `{complaint_id}`
+                        render_html(card_html)
 
-**Status:** Pending
+                        st.caption(
+                            "You can check its status anytime from **Check Status**."
+                        )
 
-Please save this Complaint ID.
-"""
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": card_html,
+                            "is_html": True
+                        }
                     )
 
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": "You can check its status anytime from **Check Status**.",
+                        }
+                    )
 
                 except Exception as e:
 
-                    st.error(
-                        f"Unable to register complaint: {e}"
+                    response = f"Unable to register complaint: {e}"
+
+                    with st.chat_message("assistant"):
+
+                        st.error(response)
+
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": response}
                     )
+
+            # ===============================================
+            # NEW COMPLAINT DETECTION
+            # ===============================================
+
+            elif is_complaint(question):
+
+                st.session_state.waiting_for_complaint = True
+                st.session_state.complaint_prompt_sent = True
+
+                response = (
+                    "I'm sorry you're experiencing a problem. "
+                    "I can help you register a complaint.\n\n"
+                    "Please describe your complaint in detail."
+                )
+
+                with st.chat_message("assistant"):
+
+                    st.markdown(response)
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": response}
+                )
+
+            # ===============================================
+            # NORMAL RAG — scoped to AppInSnap only.
+            #
+            # This wraps the question with a scope instruction so the
+            # assistant declines and redirects for anything unrelated
+            # to AppInSnap, even if support_agent.py's own system
+            # prompt doesn't already enforce that. For a cleaner fix,
+            # add the same restriction directly to the system prompt
+            # inside agents/support_agent.py.
+            # ===============================================
+
+            else:
+
+                with st.chat_message("assistant"):
+
+                    with st.spinner("Thinking..."):
+
+                        scoped_question = (
+                            "You are the AppInSnap customer support assistant. "
+                            "Only answer questions related to the AppInSnap app, "
+                            "its features, account, billing, or usage. "
+                            "If the question is unrelated to AppInSnap, politely "
+                            "say you can only help with AppInSnap-related "
+                            "questions and ask them to rephrase.\n\n"
+                            f"Customer question: {question}"
+                        )
+
+                        answer = answer_question(scoped_question)
+
+                    st.markdown(answer)
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": answer}
+                )
 
 
     # =====================================================
@@ -930,14 +1481,14 @@ Please save this Complaint ID.
 
     elif page == "Check Status":
 
-        st.header(
-            "Check Complaint Status"
+        render_html(
+            """
+            <div class="welcome">
+                <h1>Complaint Status</h1>
+                <p>View the complaints registered under your account.</p>
+            </div>
+            """
         )
-
-        st.caption(
-            "Only your own complaints are shown here."
-        )
-
 
         try:
 
@@ -947,61 +1498,63 @@ Please save this Complaint ID.
 
         except Exception as e:
 
-            st.error(
-                f"Unable to load your complaints: {e}"
-            )
+            st.error(f"Unable to load your complaints: {e}")
 
             complaints = []
 
-
         if not complaints:
 
-            st.info(
-                "You have not registered any complaints yet."
+            render_html(
+                f"""
+                <div style="
+                    background: {CARD};
+                    border: 1px solid {BORDER};
+                    border-radius: 16px;
+                    padding: 25px;
+                    text-align: center;
+                    color: {MUTED};
+                ">
+                    You have not registered any complaints yet.
+                </div>
+                """
             )
-
 
         else:
 
             for complaint in complaints:
 
-                with st.container(
-                    border=True
-                ):
+                complaint_id = complaint.get("complaint_id", "")
+                complaint_text = complaint.get("complaint", "")
+                status = complaint.get("status", "Pending")
 
-                    st.markdown(
-                        f"**Complaint ID:** "
-                        f"`{complaint.get('complaint_id', '')}`"
-                    )
+                if status == "Resolved":
 
+                    status_color = GREEN
 
-                    st.markdown(
-                        f"**Complaint:** "
-                        f"{complaint.get('complaint', '')}"
-                    )
+                elif status == "In Progress":
 
+                    status_color = ACCENT
 
-                    status = complaint.get(
-                        "status",
-                        "Pending"
-                    )
+                else:
 
+                    status_color = YELLOW
 
-                    if status == "Resolved":
-
-                        st.success(
-                            f"Status: {status}"
-                        )
-
-                    elif status == "In Progress":
-
-                        st.info(
-                            f"Status: {status}"
-                        )
-
-                    else:
-
-                        st.warning(
-                            f"Status: {status}"
-                        )
-
+                render_html(
+                    f"""
+                    <div class="complaint-card">
+                        <div class="complaint-id">
+                            Complaint ID:
+                            <span style="color:{TEXT};">{complaint_id}</span>
+                        </div>
+                        <div class="complaint-description">
+                            {complaint_text}
+                        </div>
+                        <div class="complaint-status">
+                            Status:
+                            <span style="color:{status_color}; font-weight:700;">
+                                {status}
+                            </span>
+                        </div>
+                    </div>
+                    """
+                )
