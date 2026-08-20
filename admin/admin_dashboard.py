@@ -9,6 +9,10 @@ from data.complaints import (
 
 STATUS_OPTIONS = ["Pending", "In Progress", "Resolved"]
 
+ACCENT_DARK = "#3820B8"
+TEXT = "#1A162A"
+MUTED = "#6B7787"
+
 
 def _render_status_updater(complaint, key_prefix):
     """
@@ -80,17 +84,17 @@ def admin_dashboard():
     """
 
     st.markdown(
-        """
+        f"""
         <div style="
             text-align:center;
             margin-top:10px;
             margin-bottom:30px;
         ">
-            <h1 style="color:#1A2233; font-size:32px; font-weight:700;">
+            <h1 style="color:{ACCENT_DARK}; font-size:32px; font-weight:700;">
                 Complaints
             </h1>
-            <p style="color:#6B7787; font-size:15px;">
-                Review and update the status of customer complaints.
+            <p style="color:{MUTED}; font-size:16px;">
+                Review and update the status of any customer's complaint &mdash; any admin can change the status of any complaint, for any user.
             </p>
         </div>
         """,

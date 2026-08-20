@@ -62,6 +62,12 @@ RED = "#DC2626"
 
 LOGO_PATH = Path(__file__).resolve().parent / "images" / "logo.png"
 
+# Small square crop of just the icon mark (no wordmark text) — this is
+# what goes in tight spots like the header and sidebar, where the full
+# wide logo.png gets squeezed into an illegible smudge. Falls back to
+# the full logo if this hasn't been generated yet.
+LOGO_MARK_PATH = Path(__file__).resolve().parent / "images" / "logo_mark.png"
+
 
 # =========================================================
 # HTML HELPER
@@ -856,9 +862,13 @@ def show_header():
 
     with col_logo:
 
-        if LOGO_PATH.exists():
+        if LOGO_MARK_PATH.exists():
 
-            st.image(str(LOGO_PATH), width=40)
+            st.image(str(LOGO_MARK_PATH), width=42)
+
+        elif LOGO_PATH.exists():
+
+            st.image(str(LOGO_PATH), width=42)
 
         else:
 
@@ -904,6 +914,13 @@ if not st.session_state.customer_logged_in and not st.session_state.admin_logged
     # =====================================================
 
     if st.session_state.account_view is None:
+
+        if LOGO_PATH.exists():
+
+            spacer_l, logo_col, spacer_r = st.columns([1, 1, 1])
+
+            with logo_col:
+                st.image(str(LOGO_PATH), width=220)
 
         render_html(
             """
@@ -1190,17 +1207,19 @@ else:
     # CUSTOMER SIDEBAR
     # =====================================================
 
-    if LOGO_PATH.exists():
+    sidebar_logo = LOGO_MARK_PATH if LOGO_MARK_PATH.exists() else LOGO_PATH
 
-        logo_col, title_col = st.sidebar.columns([0.25, 0.75])
+    if sidebar_logo.exists():
+
+        logo_col, title_col = st.sidebar.columns([0.22, 0.78])
 
         with logo_col:
-            st.image(str(LOGO_PATH), width=36)
+            st.image(str(sidebar_logo), width=34)
 
         with title_col:
             st.markdown(
-                '<div style="font-size:19px; font-weight:700; '
-                'margin-top:6px;">AppInSnap</div>',
+                f'<div style="font-size:20px; font-weight:700; '
+                f'color:{ACCENT_DARK}; margin-top:6px;">AppInSnap</div>',
                 unsafe_allow_html=True
             )
 
@@ -1311,7 +1330,7 @@ else:
 
                 with st.chat_message("assistant"):
 
-                    with st.spinner("Thinking..."):
+                    with st.spinner("Searching the AppInSnap knowledge base..."):
 
                         answer = answer_question(question)
 
@@ -1361,16 +1380,6 @@ else:
                 )
 
                 st.rerun()
-
-            if st.button(
-                "🔎   I want to check my complaint status",
-                key="suggestion_status",
-                use_container_width=True
-            ):
-
-                st.info(
-                    "Please select **Check Status** from the Customer Menu."
-                )
 
 
         # -------------------------------------------------
@@ -1513,7 +1522,7 @@ else:
 
                 with st.chat_message("assistant"):
 
-                    with st.spinner("Thinking..."):
+                    with st.spinner("Searching the AppInSnap knowledge base..."):
 
                         answer = answer_question(question)
 
