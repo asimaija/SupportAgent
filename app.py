@@ -1243,10 +1243,10 @@ elif st.session_state.admin_logged_in:
 
     if admin_sidebar_logo.exists():
 
-        logo_col, title_col = st.sidebar.columns([0.29, 0.84])
+        logo_col, title_col = st.sidebar.columns([0.26, 0.74])
 
         with logo_col:
-            st.image(str(admin_sidebar_logo), width=38)
+            st.image(str(admin_sidebar_logo), width=42)
 
         with title_col:
             st.markdown(
@@ -1657,76 +1657,101 @@ else:
             """
             <div class="welcome">
                 <h1>Complaint Status</h1>
-                <p>View the complaints registered under your account.</p>
+                <p>Enter your Complaint ID to view its details.</p>
             </div>
             """
         )
 
-        try:
+        lookup_col, btn_col = st.columns([0.75, 0.25])
 
-            complaints = get_customer_complaints(
-                st.session_state.customer_user_id
+        with lookup_col:
+
+            lookup_id = st.text_input(
+                "Complaint ID",
+                placeholder="e.g. CMP-6B9C0D77",
+                label_visibility="collapsed"
             )
 
-        except Exception as e:
+        with btn_col:
 
-            st.error(f"Unable to load your complaints: {e}")
-
-            complaints = []
-
-        if not complaints:
-
-            render_html(
-                f"""
-                <div style="
-                    background: {CARD};
-                    border: 1px solid {BORDER};
-                    border-radius: 16px;
-                    padding: 25px;
-                    text-align: center;
-                    color: {MUTED};
-                ">
-                    You have not registered any complaints yet.
-                </div>
-                """
+            find_clicked = st.button(
+                "Find", use_container_width=True, key="customer_status_find"
             )
 
-        else:
+        if find_clicked:
 
-            for complaint in complaints:
+            if not lookup_id.strip():
 
-                complaint_id = complaint.get("complaint_id", "")
-                complaint_text = complaint.get("complaint", "")
-                status = complaint.get("status", "Pending")
+                st.warning("Enter a complaint ID first.")
 
-                if status == "Resolved":
+            else:
 
-                    status_color = GREEN
+                try:
 
-                elif status == "In Progress":
+                    # Scoped to this customer's own complaints only —
+                    # never looks up any complaint ID directly, so a
+                    # customer can't view someone else's complaint by
+                    # guessing or typing in a different ID.
+                    complaints = get_customer_complaints(
+                        st.session_state.customer_user_id
+                    )
 
-                    status_color = ACCENT
+                except Exception as e:
+
+                    st.error(f"Unable to load your complaints: {e}")
+
+                    complaints = []
+
+                match = next(
+                    (
+                        c for c in complaints
+                        if c.get("complaint_id", "").strip().lower()
+                        == lookup_id.strip().lower()
+                    ),
+                    None
+                )
+
+                if not match:
+
+                    st.warning(
+                        f"No complaint found with ID '{lookup_id.strip()}' "
+                        "under your account."
+                    )
 
                 else:
 
-                    status_color = YELLOW
+                    complaint_id = match.get("complaint_id", "")
+                    complaint_text = match.get("complaint", "")
+                    status = match.get("status", "Pending")
 
-                render_html(
-                    f"""
-                    <div class="complaint-card">
-                        <div class="complaint-id">
-                            Complaint ID:
-                            <span style="color:{TEXT};">{complaint_id}</span>
+                    if status == "Resolved":
+
+                        status_color = GREEN
+
+                    elif status == "In Progress":
+
+                        status_color = ACCENT
+
+                    else:
+
+                        status_color = YELLOW
+
+                    render_html(
+                        f"""
+                        <div class="complaint-card">
+                            <div class="complaint-id">
+                                Complaint ID:
+                                <span style="color:{TEXT};">{complaint_id}</span>
+                            </div>
+                            <div class="complaint-description">
+                                {complaint_text}
+                            </div>
+                            <div class="complaint-status">
+                                Status:
+                                <span style="color:{status_color}; font-weight:700;">
+                                    {status}
+                                </span>
+                            </div>
                         </div>
-                        <div class="complaint-description">
-                            {complaint_text}
-                        </div>
-                        <div class="complaint-status">
-                            Status:
-                            <span style="color:{status_color}; font-weight:700;">
-                                {status}
-                            </span>
-                        </div>
-                    </div>
-                    """
-                )
+                        """
+                    )
