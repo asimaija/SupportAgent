@@ -1,6 +1,7 @@
-import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from data.dataset import load_dataset
 
@@ -10,34 +11,21 @@ OVERLAP = 50
 N_CLUSTERS = 5
 
 
-def split_sentences(text):
-    return re.split(r'(?<=[.!?])\s+', text.strip())
+# LangChain's splitter, in place of the old hand-rolled
+# split_sentences() + chunk_text() pair. It tries each separator in
+# order — paragraph, then line, then sentence-ending punctuation,
+# then plain space — so it still prefers to break on a sentence
+# boundary before ever cutting mid-sentence, same as the old regex
+# version, but without the byte-for-byte sentence-tracking logic.
+_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=CHUNK_SIZE,
+    chunk_overlap=OVERLAP,
+    separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+)
 
 
 def chunk_text(text):
-
-    sentences = split_sentences(text)
-
-    chunks = []
-    current = ""
-
-    for sentence in sentences:
-
-        if len(current) + len(sentence) <= CHUNK_SIZE:
-            current += sentence + " "
-
-        else:
-            chunks.append(current.strip())
-
-            # Keep last 50 characters as overlap
-            overlap = current[-OVERLAP:]
-
-            current = overlap + " " + sentence
-
-    if current.strip():
-        chunks.append(current.strip())
-
-    return chunks
+    return _splitter.split_text(text.strip())
 
 
 def cluster_chunks(chunks):

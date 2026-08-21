@@ -160,9 +160,41 @@ Rules:
    AppInSnap, reply with exactly:
    "I could not find this information in the AppInSnap knowledge base."
 4. Keep answers clear, concise, and in a helpful support-agent tone.
-5. Never handle complaint registration here — that is handled
+5. Write in plain prose sentences only. Do not use markdown
+   formatting of any kind — no **bold**, no _italics_, no bullet
+   lists, no headings, no backticks.
+6. Never handle complaint registration here — that is handled
    separately by app.py.
 """
+
+
+# =========================================================
+# Strip markdown emphasis from a model's answer.
+#
+# Belt-and-suspenders: rule 5 above asks the model not to use
+# markdown, but small/fast models don't always obey formatting
+# instructions perfectly. This guarantees plain text regardless,
+# so answers render the same (no stray bold words) no matter which
+# Groq model is configured.
+# =========================================================
+
+import re
+
+_BOLD_ITALIC_RE = re.compile(r"(\*{1,3}|_{1,3})(.+?)\1")
+_HEADING_RE = re.compile(r"^#{1,6}\s*", re.MULTILINE)
+_INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+
+
+def _strip_markdown_emphasis(text):
+
+    if not text:
+        return text
+
+    text = _BOLD_ITALIC_RE.sub(r"\2", text)
+    text = _HEADING_RE.sub("", text)
+    text = _INLINE_CODE_RE.sub(r"\1", text)
+
+    return text
 
 
 # =========================================================
@@ -254,7 +286,7 @@ def answer_question(question):
 
         try:
             final = llm_with_tools.invoke(messages)
-            return final.content.strip()
+            return _strip_markdown_emphasis(final.content.strip())
         except Exception as e:
             return f"Sorry, I was unable to generate an answer. Error: {e}"
 

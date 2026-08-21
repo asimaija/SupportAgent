@@ -1,14 +1,4 @@
-from sentence_transformers import SentenceTransformer
-
-from rag.vector_store import (
-    client,
-    COLLECTION_NAME,
-)
-
-
-model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+from rag.vector_store import get_vector_store
 
 
 def retrieve(
@@ -19,49 +9,35 @@ def retrieve(
     """
     Retrieve relevant knowledge-base chunks.
 
-    The user's question embedding is temporary.
-    It is NOT stored in Qdrant.
+    The user's question embedding is temporary — created in memory by
+    LangChain's QdrantVectorStore (via rag/embeddings.py) purely to
+    run this search. It is NOT stored in Qdrant.
     """
 
+    store = get_vector_store()
+
     # --------------------------------
-    # 1. Create temporary query embedding
+    # LangChain does the embedding + search + score-filtering in one
+    # call: store.similarity_search_with_score() embeds `query` with
+    # the shared HuggingFaceEmbeddings instance, searches Qdrant, and
+    # score_threshold drops anything below our confidence bar before
+    # it even comes back — this is the same hard gate the old manual
+    # "if score >= threshold" loop enforced, just done by LangChain.
     # --------------------------------
 
-    query_embedding = model.encode(
+    matches = store.similarity_search_with_score(
         query,
-        normalize_embeddings=True,
+        k=top_k,
+        score_threshold=threshold,
     )
 
-    # --------------------------------
-    # 2. Search existing embeddings
-    # --------------------------------
-
-    result = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_embedding.tolist(),
-        limit=top_k,
-    )
-
-    # --------------------------------
-    # 3. Collect relevant chunks
-    # --------------------------------
-
-    results = []
-
-    for point in result.points:
-
-        score = point.score
-
-        if score >= threshold:
-
-            results.append({
-                "chunks": point.payload["text"],
-                "score": float(score),
-            })
-
-    # --------------------------------
-    # 4. Return results
-    # --------------------------------
+    results = [
+        {
+            "chunks": document.page_content,
+            "score": float(score),
+        }
+        for document, score in matches
+    ]
 
     return results
 

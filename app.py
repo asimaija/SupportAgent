@@ -69,10 +69,6 @@ LOGO_PATH = Path(__file__).resolve().parent / "images" / "logo.png"
 # the full logo if this hasn't been generated yet.
 LOGO_MARK_PATH = Path(__file__).resolve().parent / "images" / "logo_mark.png"
 
-# All-white version of the icon mark, for use on top of the brand-colored
-# header banner where the regular indigo mark would blend in and disappear.
-LOGO_MARK_WHITE_PATH = Path(__file__).resolve().parent / "images" / "logo_mark_white.png"
-
 
 # =========================================================
 # HTML HELPER
@@ -115,24 +111,6 @@ def build_complaint_card_html(complaint_id, complaint_text, status, customer_nam
     """
 
 
-def strip_bold(text):
-    """
-    Strips markdown bold markers (**word** / __word__) so answers and
-    labels render as plain text everywhere in the app — bolded words
-    inside generated answers don't look good mixed into normal prose.
-    """
-
-    if not text:
-
-        return text
-
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-
-    text = re.sub(r"__(.+?)__", r"\1", text)
-
-    return text
-
-
 def render_html(content):
 
     text = textwrap.dedent(content)
@@ -149,6 +127,26 @@ def render_html(content):
         "\n".join(lines),
         unsafe_allow_html=True
     )
+
+
+# =========================================================
+# Assistant answers come back from the LLM as markdown, and it
+# tends to bold key terms (**your account**, **billing**, ...).
+# That reads fine in a generic chat UI, but here it just makes
+# scattered words pop for no real reason. Strip bold markers
+# before displaying so every page (chat, history, suggestions)
+# stays plain, consistent text.
+# =========================================================
+
+def strip_bold(text):
+
+    if not text:
+        return text
+
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+
+    return text
 
 
 # =========================================================
@@ -348,17 +346,13 @@ render_html(
 
     .app-title {{
 
-        color: {WHITE};
+        color: {TEXT};
 
-        font-size: 22px;
+        font-size: 24px;
 
         font-weight: 700;
 
         letter-spacing: -0.4px;
-
-        line-height: 48px;
-
-        white-space: nowrap;
     }}
 
 
@@ -370,35 +364,43 @@ render_html(
 
     .header-user {{
 
-        color: {WHITE};
+        color: {MUTED};
 
         font-size: 15px;
 
-        font-weight: 600;
-
-        line-height: 48px;
-
-        white-space: nowrap;
-
-        overflow: visible;
-
-        text-align: right;
+        margin-right: 10px;
     }}
 
 
-    /* Colored banner behind the top header row (logo / title / user)
-       so it always sits on the brand color with white text, on every
-       page — landing, chat, and admin alike. */
+    /* Pill-shaped user badge in the top header: brand-colored
+       background with white text, always a single line (long
+       emails truncate with an ellipsis instead of wrapping). */
 
-    div[data-testid="stHorizontalBlock"]:has(.app-header-bar) {{
+    .header-user-badge {{
+
+        display: inline-block;
+
+        max-width: 100%;
 
         background: {ACCENT};
 
-        border-radius: 14px;
+        color: {WHITE} !important;
 
-        padding: 10px 20px !important;
+        font-size: 13.5px;
 
-        margin-bottom: 26px !important;
+        font-weight: 600;
+
+        padding: 7px 14px;
+
+        border-radius: 999px;
+
+        white-space: nowrap;
+
+        overflow: hidden;
+
+        text-overflow: ellipsis;
+
+        vertical-align: middle;
     }}
 
 
@@ -418,7 +420,7 @@ render_html(
 
     .welcome h1 {{
 
-        color: {TEXT} !important;
+        color: {ACCENT_DARK} !important;
 
         font-size: 38px !important;
 
@@ -907,56 +909,58 @@ for key, value in defaults.items():
 
 def show_header():
 
-    col_logo, col_title, col_user = st.columns(
-        [0.08, 0.52, 0.4]
+    col_logo, col_spacer, col_user = st.columns(
+        [0.20, 0.50, 0.30]
     )
 
     with col_logo:
 
-        # Invisible marker picked up by the `:has(.app-header-bar)` CSS
-        # rule above, so this whole row gets the brand-colored banner
-        # background on every page (landing, chat, and admin alike).
-        # It has to live inside the columns block to be a descendant
-        # of the stHorizontalBlock that :has() matches against.
-        render_html('<div class="app-header-bar" style="display:none;"></div>')
+        if LOGO_MARK_PATH.exists():
 
-        if LOGO_MARK_WHITE_PATH.exists():
-
-            st.image(str(LOGO_MARK_WHITE_PATH), width=48)
-
-        elif LOGO_MARK_PATH.exists():
-
-            st.image(str(LOGO_MARK_PATH), width=48)
+            st.image(str(LOGO_MARK_PATH), width=72)
 
         elif LOGO_PATH.exists():
 
-            st.image(str(LOGO_PATH), width=48)
+            st.image(str(LOGO_PATH), width=72)
 
         else:
 
             render_html(
-                '<div style="font-size:32px; color:{WHITE}; '
-                'line-height:48px;">⚡</div>'
+                '<div style="font-size:30px; margin-top:6px;">⚡</div>'
             )
-
-    with col_title:
-
-        render_html(
-            '<div class="app-title">AppInSnap Support</div>'
-        )
 
     with col_user:
 
+        user_label = None
+
         if st.session_state.customer_logged_in:
 
-            render_html(
-                f'<div class="header-user">{st.session_state.customer_name}</div>'
-            )
+            user_label = st.session_state.customer_name
 
         elif st.session_state.admin_logged_in:
 
+            user_label = st.session_state.admin_email
+
+        if user_label:
+
+            # Truncate in Python too (not just CSS ellipsis) so this
+            # is guaranteed single-line no matter what — long emails
+            # were previously wrapping across 2-3 lines here.
+            display_label = user_label
+
+            if len(display_label) > 24:
+                display_label = display_label[:21] + "..."
+
             render_html(
-                f'<div class="header-user">{st.session_state.admin_email}</div>'
+                f'<div style="margin-top:24px; text-align:right; '
+                f'white-space:nowrap;">'
+                f'<span title="{user_label}" style="'
+                f'display:inline-block; max-width:220px; '
+                f'color:{MUTED}; font-size:14px; font-weight:500; '
+                f'white-space:nowrap; overflow:hidden; '
+                f'text-overflow:ellipsis; word-break:keep-all; '
+                f'overflow-wrap:normal; vertical-align:middle;">'
+                f'{display_label}</span></div>'
             )
 
 
@@ -1235,49 +1239,52 @@ if not st.session_state.customer_logged_in and not st.session_state.admin_logged
 
 elif st.session_state.admin_logged_in:
 
-    # Same logo + title treatment as the customer sidebar, so both
-    # sidebars are visually consistent (same logo size, same title
-    # font size/weight/length).
     admin_sidebar_logo = LOGO_MARK_PATH if LOGO_MARK_PATH.exists() else LOGO_PATH
 
     if admin_sidebar_logo.exists():
 
-        admin_logo_col, admin_title_col = st.sidebar.columns([0.22, 0.78])
+        logo_col, title_col = st.sidebar.columns([0.29, 0.84])
 
-        with admin_logo_col:
-            st.image(str(admin_sidebar_logo), width=40)
+        with logo_col:
+            st.image(str(admin_sidebar_logo), width=38)
 
-        with admin_title_col:
+        with title_col:
             st.markdown(
-                f'<div style="font-size:20px; font-weight:700; '
-                f'color:{ACCENT_DARK}; margin-top:6px;">AppInSnap</div>',
+                f'<div style="font-size:18px; font-weight:700; '
+                f'color:{ACCENT_DARK}; margin-top:6px;">AppInSnap Admin</div>',
                 unsafe_allow_html=True
             )
 
     else:
 
-        st.sidebar.markdown("## 🛠️ AppInSnap")
+        st.sidebar.markdown("## 🛠️ AppInSnap Admin")
 
-    st.sidebar.markdown(
-        f'<div style="color:{ACCENT}; font-size:14px; font-weight:700; '
-        f'margin-top:6px; margin-bottom:10px;">🛠️ Admin</div>',
-        unsafe_allow_html=True
+    _admin_email = st.session_state.admin_email
+    _admin_email_display = (
+        _admin_email if len(_admin_email) <= 28 else _admin_email[:25] + "..."
     )
 
     st.sidebar.markdown(
         f"""
         <div style="
-            background: {CARD};
-            border: 1px solid {BORDER};
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 18px;
+            padding: 4px 2px 14px 2px;
+            margin-top: 8px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid {BORDER};
         ">
-            <div style="color: {MUTED}; font-size: 13px;">
+            <div style="color: {MUTED}; font-size: 12px;">
                 Logged in as
             </div>
-            <div style="color: {TEXT}; font-size: 16px; font-weight: 600; margin-top: 4px; word-break: break-all;">
-                {st.session_state.admin_email}
+            <div style="
+                color: {TEXT};
+                font-size: 14px;
+                font-weight: 600;
+                margin-top: 3px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            " title="{_admin_email}">
+                {_admin_email_display}
             </div>
         </div>
         """,
@@ -1316,10 +1323,10 @@ else:
 
     if sidebar_logo.exists():
 
-        logo_col, title_col = st.sidebar.columns([0.22, 0.78])
+        logo_col, title_col = st.sidebar.columns([0.26, 0.74])
 
         with logo_col:
-            st.image(str(sidebar_logo), width=40)
+            st.image(str(sidebar_logo), width=42)
 
         with title_col:
             st.markdown(
@@ -1335,12 +1342,10 @@ else:
     st.sidebar.markdown(
         f"""
         <div style="
-            background: {CARD};
-            border: 1px solid {BORDER};
-            border-radius: 12px;
-            padding: 14px;
+            padding: 4px 2px 14px 2px;
             margin-top: 14px;
-            margin-bottom: 18px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid {BORDER};
         ">
             <div style="color: {MUTED}; font-size: 13px;">
                 Logged in as
@@ -1437,9 +1442,9 @@ else:
 
                     with st.spinner("Searching the AppInSnap knowledge base..."):
 
-                        answer = strip_bold(answer_question(question))
+                        answer = answer_question(question)
 
-                    st.markdown(answer)
+                    st.markdown(strip_bold(answer))
 
                 st.session_state.messages.append(
                     {"role": "assistant", "content": answer}
@@ -1499,6 +1504,10 @@ else:
 
                     render_html(message["content"])
 
+                elif message["role"] == "assistant":
+
+                    st.markdown(strip_bold(message["content"]))
+
                 else:
 
                     st.markdown(message["content"])
@@ -1556,7 +1565,7 @@ else:
                         render_html(card_html)
 
                         st.caption(
-                            "You can check its status anytime from Check Status."
+                            "You can check its status anytime from **Check Status**."
                         )
 
                     st.session_state.messages.append(
@@ -1570,7 +1579,7 @@ else:
                     st.session_state.messages.append(
                         {
                             "role": "assistant",
-                            "content": "You can check its status anytime from Check Status.",
+                            "content": "You can check its status anytime from **Check Status**.",
                         }
                     )
 
@@ -1629,9 +1638,9 @@ else:
 
                     with st.spinner("Searching the AppInSnap knowledge base..."):
 
-                        answer = strip_bold(answer_question(question))
+                        answer = answer_question(question)
 
-                    st.markdown(answer)
+                    st.markdown(strip_bold(answer))
 
                 st.session_state.messages.append(
                     {"role": "assistant", "content": answer}

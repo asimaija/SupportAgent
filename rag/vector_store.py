@@ -1,20 +1,27 @@
 import atexit
-#qdrant
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    VectorParams,
-    PointStruct,
-)
 
-from rag.embeddings import create_embeddings
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+
+from langchain_qdrant import QdrantVectorStore
+
+from rag.chunker import create_chunks
+from rag.embeddings import embeddings
 
 
 COLLECTION_NAME = "appinsnap"
 
+# All-MiniLM-L6-v2 output size — used to create the Qdrant collection
+# the first time, before any vectors exist to infer it from.
+EMBEDDING_DIM = 384
+
 
 # --------------------------------
 # Connect to local Qdrant storage
+#
+# One shared client for the whole process (ingestion AND retrieval),
+# since a local, file-based Qdrant store can only be opened by one
+# client at a time. rag/retriever.py imports this same `client`.
 # --------------------------------
 
 client = QdrantClient(
@@ -29,55 +36,56 @@ client = QdrantClient(
 atexit.register(client.close)
 
 
-def create_vector_store():
+def _ensure_collection():
 
-    # Create embeddings for knowledge-base chunks
-    chunks, embeddings = create_embeddings()
-
-    # --------------------------------
-    # Create collection
-    # --------------------------------
-
-    if not client.collection_exists(
-        COLLECTION_NAME
-    ):
+    if not client.collection_exists(COLLECTION_NAME):
 
         client.create_collection(
             collection_name=COLLECTION_NAME,
             vectors_config=VectorParams(
-                size=embeddings.shape[1],
+                size=EMBEDDING_DIM,
                 distance=Distance.COSINE,
             ),
         )
 
-    # --------------------------------
-    # Create Qdrant points
-    # --------------------------------
 
-    points = []
+def get_vector_store():
+    """
+    Returns a LangChain QdrantVectorStore bound to the AppInSnap
+    collection. content_payload_key="text" matches the payload key
+    already used by points ingested before this migrated to
+    LangChain, so existing data keeps working without re-ingesting.
+    """
 
-    for i, (chunk, embedding) in enumerate(
-        zip(chunks, embeddings)
-    ):
+    _ensure_collection()
 
-        points.append(
-            PointStruct(
-                id=i,
-                vector=embedding.tolist(),
-                payload={
-                    "text": chunk
-                },
-            )
-        )
-
-    # --------------------------------
-    # Store ONLY knowledge-base chunks
-    # --------------------------------
-
-    client.upsert(
+    return QdrantVectorStore(
+        client=client,
         collection_name=COLLECTION_NAME,
-        points=points,
+        embedding=embeddings,
+        content_payload_key="text",
+        distance=Distance.COSINE,
     )
+
+
+def create_vector_store():
+    """
+    Ingestion: chunk the knowledge base, then hand the chunks to
+    LangChain's QdrantVectorStore.add_texts(), which embeds them
+    (via rag/embeddings.py) and upserts them into Qdrant — the same
+    two steps the old manual PointStruct code did by hand.
+    """
+
+    chunks = create_chunks()
+
+    texts = [
+        chunk["text"]
+        for chunk in chunks
+    ]
+
+    store = get_vector_store()
+
+    store.add_texts(texts)
 
     print(
         "Qdrant vector store created successfully!"
@@ -85,7 +93,7 @@ def create_vector_store():
 
     print(
         "Total chunks:",
-        len(chunks)
+        len(texts)
     )
 
 

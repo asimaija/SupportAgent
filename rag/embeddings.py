@@ -1,10 +1,23 @@
-from sentence_transformers import SentenceTransformer
+from langchain_huggingface import HuggingFaceEmbeddings
 
 from rag.chunker import create_chunks
 
 
-model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+# Shared LangChain Embeddings object. Both ingestion (vector_store.py,
+# building the knowledge base) and live search (retriever.py, embedding
+# the customer's question) go through this exact same instance, so
+# document and query embeddings are always produced the same way.
+#
+# This replaces a raw sentence_transformers.SentenceTransformer call
+# with LangChain's HuggingFaceEmbeddings wrapper around the identical
+# underlying model — same numbers out, but now behind LangChain's
+# standard Embeddings interface, which is what lets rag/vector_store.py
+# hand it straight to a LangChain VectorStore.
+embeddings = HuggingFaceEmbeddings(
+    model_name=EMBEDDING_MODEL,
+    encode_kwargs={"normalize_embeddings": True},
 )
 
 
@@ -14,7 +27,7 @@ def create_embeddings():
 
     Returns:
         texts: list[str]
-        embeddings: np.ndarray
+        vectors: list[list[float]]
     """
 
     chunks = create_chunks()
@@ -24,20 +37,16 @@ def create_embeddings():
         for chunk in chunks
     ]
 
-    embeddings = model.encode(
-        texts,
-        normalize_embeddings=True,
-        show_progress_bar=True,
-    )
+    vectors = embeddings.embed_documents(texts)
 
-    return texts, embeddings
+    return texts, vectors
 
 
 if __name__ == "__main__":
 
-    texts, embeddings = create_embeddings()
+    texts, vectors = create_embeddings()
 
     print(
         f"Created {len(texts)} embeddings "
-        f"of dimension {embeddings.shape[1]}"
+        f"of dimension {len(vectors[0])}"
     )

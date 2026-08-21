@@ -12,3 +12,5 @@ firebase-admin
 langchain
 langchain-groq
 langchain-qdrant
+langchain-huggingface
+langchain-text-splitters
