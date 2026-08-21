@@ -33,9 +33,7 @@ st.set_page_config(
 )
 
 
-# =========================================================
-# COLORS  ("Signal Blue" theme — light, professional, B2B-tech)
-# =========================================================
+
 
 BG = "#F6F5FC"           # soft violet-white page background
 SIDEBAR = "#FFFFFF"
@@ -57,16 +55,9 @@ YELLOW = "#D97706"
 RED = "#DC2626"
 
 
-# =========================================================
-# LOGO
-# =========================================================
+
 
 LOGO_PATH = Path(__file__).resolve().parent / "images" / "logo.png"
-
-# Small square crop of just the icon mark (no wordmark text) — this is
-# what goes in tight spots like the header and sidebar, where the full
-# wide logo.png gets squeezed into an illegible smudge. Falls back to
-# the full logo if this hasn't been generated yet.
 LOGO_MARK_PATH = Path(__file__).resolve().parent / "images" / "logo_mark.png"
 
 
@@ -888,10 +879,7 @@ defaults = {
 
     "admin_id_token": "",
 
-    # Which top-level landing menu the visitor picked:
-    # None -> show the Customer / Admin chooser
-    # "customer" -> show Login / Register
-    # "admin" -> show admin email/password form
+    
     "account_view": None
 }
 
@@ -1688,10 +1676,7 @@ else:
 
                 try:
 
-                    # Scoped to this customer's own complaints only —
-                    # never looks up any complaint ID directly, so a
-                    # customer can't view someone else's complaint by
-                    # guessing or typing in a different ID.
+                    
                     complaints = get_customer_complaints(
                         st.session_state.customer_user_id
                     )

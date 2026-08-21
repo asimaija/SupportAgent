@@ -1,24 +1,3 @@
-# =========================================================
-# agents/support_agent.py
-#
-# The support agent is a small LangChain "tool-calling" agent:
-#
-#   - The LLM (served by Groq) is given exactly ONE tool:
-#     `search_appinsnap_knowledge`, which searches the AppInSnap
-#     knowledge base (rag/retriever.py -> Qdrant).
-#
-#   - The model is instructed to ALWAYS call that tool before
-#     answering, and to answer using nothing but what the tool
-#     returns.
-#
-#   - If the tool finds nothing relevant (i.e. the question isn't
-#     about AppInSnap, or the answer just isn't in the knowledge
-#     base), the fixed refusal message is returned directly — this
-#     does NOT depend on the model "choosing" to be honest, it's
-#     enforced in code, so scope stays tight even with a small /
-#     cheap model.
-# =========================================================
-
 import os
 
 import streamlit as st
@@ -29,31 +8,8 @@ from langchain_core.messages import (
     HumanMessage,
     ToolMessage,
 )
-
 from rag.retriever import retrieve
 
-
-# =========================================================
-# WHAT LANGCHAIN IS DOING HERE (short version)
-# =========================================================
-# LangChain is just the glue: it gives every LLM provider (Groq,
-# OpenAI, Ollama, ...) the same `ChatModel` interface, and gives
-# "tools" (plain Python functions) a standard schema the model can
-# call. Swapping Ollama for Groq below only required changing this
-# one import + constructor — none of app.py, the RAG pipeline, or
-# the complaint flow had to change. That decoupling (one interface
-# for models, tools, and prompts) is the whole value of LangChain.
-# =========================================================
-
-
-# =========================================================
-# GROQ API KEY
-#
-# Checked in this order:
-#   1. .streamlit/secrets.toml   -> GROQ_API_KEY   (same pattern
-#      already used for FIREBASE_API_KEY in customer/auth.py)
-#   2. Environment variable      -> GROQ_API_KEY
-# =========================================================
 
 def get_groq_api_key():
 
@@ -79,15 +35,7 @@ def get_groq_model():
 
 
 GROQ_API_KEY = get_groq_api_key()
-
-# Groq deprecated the llama-3.x models in June 2026. This is their
-# recommended replacement for llama-3.3-70b-versatile: strong quality,
-# fast inference. Override with GROQ_MODEL (env var or secret) if you
-# want something else — e.g. "openai/gpt-oss-20b" for lower latency,
-# or "qwen/qwen3.6-27b" for their current highest-intelligence model.
 GROQ_MODEL = get_groq_model() or "openai/gpt-oss-120b"
-
-
 NO_MATCH = "NO_MATCH"
 
 
@@ -261,11 +209,6 @@ def answer_question(question):
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
 
-    # -----------------------------------------------------
-    # Safety net: if the model skipped the tool (small/cheap
-    # models occasionally do), search ourselves so the answer
-    # still stays grounded in the knowledge base.
-    # -----------------------------------------------------
 
     if not tool_calls:
 

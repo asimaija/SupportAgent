@@ -11,18 +11,11 @@ from rag.embeddings import embeddings
 
 COLLECTION_NAME = "appinsnap"
 
-# All-MiniLM-L6-v2 output size — used to create the Qdrant collection
-# the first time, before any vectors exist to infer it from.
+
 EMBEDDING_DIM = 384
 
 
-# --------------------------------
-# Connect to local Qdrant storage
-#
-# One shared client for the whole process (ingestion AND retrieval),
-# since a local, file-based Qdrant store can only be opened by one
-# client at a time. rag/retriever.py imports this same `client`.
-# --------------------------------
+
 
 client = QdrantClient(
     path="./qdrant_db"

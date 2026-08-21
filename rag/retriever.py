@@ -16,14 +16,6 @@ def retrieve(
 
     store = get_vector_store()
 
-    # --------------------------------
-    # LangChain does the embedding + search + score-filtering in one
-    # call: store.similarity_search_with_score() embeds `query` with
-    # the shared HuggingFaceEmbeddings instance, searches Qdrant, and
-    # score_threshold drops anything below our confidence bar before
-    # it even comes back — this is the same hard gate the old manual
-    # "if score >= threshold" loop enforced, just done by LangChain.
-    # --------------------------------
 
     matches = store.similarity_search_with_score(
         query,

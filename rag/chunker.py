@@ -11,12 +11,7 @@ OVERLAP = 50
 N_CLUSTERS = 5
 
 
-# LangChain's splitter, in place of the old hand-rolled
-# split_sentences() + chunk_text() pair. It tries each separator in
-# order — paragraph, then line, then sentence-ending punctuation,
-# then plain space — so it still prefers to break on a sentence
-# boundary before ever cutting mid-sentence, same as the old regex
-# version, but without the byte-for-byte sentence-tracking logic.
+
 _splitter = RecursiveCharacterTextSplitter(
     chunk_size=CHUNK_SIZE,
     chunk_overlap=OVERLAP,
