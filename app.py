@@ -38,11 +38,15 @@ st.set_page_config(
 # COLORS  ("Signal Blue" theme — light, professional, B2B-tech)
 # =========================================================
 
-BG = "#F6F5FC"           # soft violet-white page background
+BG = "#F3F1FF"           # solid fallback (same family as the gradient below)
+BG_GRADIENT = (           # page background — soft indigo-to-teal wash,
+    "linear-gradient(135deg, #EEF0FF 0%, "  # pulled from the logo's
+    "#F3F0FF 35%, #E7FBF6 100%)"            # violet + the teal accent
+)
 SIDEBAR = "#FFFFFF"
 CARD = "#FFFFFF"
-CARD_HOVER = "#F1EEFF"
-BORDER = "#E4E0F5"
+CARD_HOVER = "#F5F3FF"
+BORDER = "#E7E4F2"
 
 ACCENT = "#4F35E0"        # primary brand indigo/violet, sampled from the logo mark
 ACCENT_DARK = "#3820B8"
@@ -145,23 +149,11 @@ def render_html(content):
 
 
 # =========================================================
-# Assistant answers come back from the LLM as markdown, and it
-# tends to bold key terms (**your account**, **billing**, ...).
-# That reads fine in a generic chat UI, but here it just makes
-# scattered words pop for no real reason. Strip bold markers
-# before displaying so every page (chat, history, suggestions)
-# stays plain, consistent text.
+# Assistant answers come back from the LLM as markdown, and the
+# support agent is prompted to bold key terms on purpose (feature
+# names, limits, deadlines, ...). st.markdown() already renders
+# that bold correctly, so it's passed straight through unchanged.
 # =========================================================
-
-def strip_bold(text):
-
-    if not text:
-        return text
-
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-    text = re.sub(r"__(.+?)__", r"\1", text)
-
-    return text
 
 
 # =========================================================
@@ -182,7 +174,9 @@ render_html(
     [data-testid="stApp"],
     .stApp {{
 
-        background: {BG} !important;
+        background: {BG_GRADIENT} !important;
+
+        background-attachment: fixed !important;
 
         color: {TEXT} !important;
 
@@ -194,7 +188,7 @@ render_html(
 
     .main {{
 
-        background: {BG} !important;
+        background: transparent !important;
     }}
 
 
@@ -210,7 +204,7 @@ render_html(
 
     [data-testid="stHeader"] {{
 
-        background: {BG} !important;
+        background: transparent !important;
     }}
 
 
@@ -232,7 +226,7 @@ render_html(
 
     [data-testid="stSidebar"] {{
 
-        background: {SIDEBAR} !important;
+        background: linear-gradient(180deg, #F5F3FF 0%, #EFFAF7 100%) !important;
 
         border-right: 1px solid {BORDER} !important;
 
@@ -260,7 +254,7 @@ render_html(
 
     [data-testid="stSidebar"] > div:first-child {{
 
-        background: {SIDEBAR} !important;
+        background: transparent !important;
 
         padding-top: 20px !important;
     }}
@@ -922,7 +916,7 @@ for key, value in defaults.items():
 # HEADER
 # =========================================================
 
-def show_header():
+def show_header(show_back=False):
 
     col_logo, col_spacer, col_user = st.columns(
         [0.20, 0.50, 0.30]
@@ -930,19 +924,18 @@ def show_header():
 
     with col_logo:
 
-        if LOGO_MARK_PATH.exists():
+        # The wordmark already appears large and centered on the
+        # landing page, so the top bar stays clean/logo-free. The
+        # only thing that lives here is the Back control, shown on
+        # the Customer / Admin sign-in screens so it's always in the
+        # same spot at the very top of the page.
+        if show_back:
 
-            st.image(str(LOGO_MARK_PATH), width=72)
+            if st.button("← Back", key="header_back"):
 
-        elif LOGO_PATH.exists():
+                st.session_state.account_view = None
 
-            st.image(str(LOGO_PATH), width=72)
-
-        else:
-
-            render_html(
-                '<div style="font-size:30px; margin-top:6px;">⚡</div>'
-            )
+                st.rerun()
 
     with col_user:
 
@@ -979,7 +972,13 @@ def show_header():
             )
 
 
-show_header()
+show_header(
+    show_back=(
+        not st.session_state.customer_logged_in
+        and not st.session_state.admin_logged_in
+        and st.session_state.account_view in ("customer", "admin")
+    )
+)
 
 
 # =========================================================
@@ -1046,12 +1045,6 @@ if not st.session_state.customer_logged_in and not st.session_state.admin_logged
     # =====================================================
 
     elif st.session_state.account_view == "customer":
-
-        if st.button("← Back", key="back_from_customer"):
-
-            st.session_state.account_view = None
-
-            st.rerun()
 
         render_html(
             """
@@ -1187,12 +1180,6 @@ if not st.session_state.customer_logged_in and not st.session_state.admin_logged
 
     elif st.session_state.account_view == "admin":
 
-        if st.button("← Back", key="back_from_admin"):
-
-            st.session_state.account_view = None
-
-            st.rerun()
-
         render_html(
             """
             <div class="account-title">Staff / Admin</div>
@@ -1254,25 +1241,12 @@ if not st.session_state.customer_logged_in and not st.session_state.admin_logged
 
 elif st.session_state.admin_logged_in:
 
-    admin_sidebar_logo = LOGO_MARK_PATH if LOGO_MARK_PATH.exists() else LOGO_PATH
-
-    if admin_sidebar_logo.exists():
-
-        logo_col, title_col = st.sidebar.columns([0.26, 0.74])
-
-        with logo_col:
-            st.image(str(admin_sidebar_logo), width=42)
-
-        with title_col:
-            st.markdown(
-                f'<div style="font-size:18px; font-weight:700; '
-                f'color:{ACCENT_DARK}; margin-top:6px;">AppInSnap Admin</div>',
-                unsafe_allow_html=True
-            )
-
-    else:
-
-        st.sidebar.markdown("## 🛠️ AppInSnap Admin")
+    st.sidebar.markdown(
+        f'<div style="text-align:left; padding-left:4px; font-size:20px; '
+        f'font-weight:700; color:{ACCENT_DARK}; margin-bottom:8px;">'
+        f'AppInSnap Support</div>',
+        unsafe_allow_html=True
+    )
 
     _admin_email = st.session_state.admin_email
     _admin_email_display = (
@@ -1313,6 +1287,7 @@ elif st.session_state.admin_logged_in:
         st.session_state.admin_email = ""
         st.session_state.admin_id_token = ""
         st.session_state.account_view = None
+        st.session_state.admin_has_searched = False
 
         st.rerun()
 
@@ -1334,25 +1309,12 @@ else:
     # CUSTOMER SIDEBAR
     # =====================================================
 
-    sidebar_logo = LOGO_MARK_PATH if LOGO_MARK_PATH.exists() else LOGO_PATH
-
-    if sidebar_logo.exists():
-
-        logo_col, title_col = st.sidebar.columns([0.26, 0.74])
-
-        with logo_col:
-            st.image(str(sidebar_logo), width=42)
-
-        with title_col:
-            st.markdown(
-                f'<div style="font-size:20px; font-weight:700; '
-                f'color:{ACCENT_DARK}; margin-top:6px;">AppInSnap</div>',
-                unsafe_allow_html=True
-            )
-
-    else:
-
-        st.sidebar.markdown("## ⚡ AppInSnap")
+    st.sidebar.markdown(
+        f'<div style="text-align:left; padding-left:4px; font-size:20px; '
+        f'font-weight:700; color:{ACCENT_DARK}; margin-bottom:8px;">'
+        f'AppInSnap Support</div>',
+        unsafe_allow_html=True
+    )
 
     st.sidebar.markdown(
         f"""
@@ -1459,7 +1421,7 @@ else:
 
                         answer = answer_question(question)
 
-                    st.markdown(strip_bold(answer))
+                    st.markdown(answer)
 
                 st.session_state.messages.append(
                     {"role": "assistant", "content": answer}
@@ -1521,7 +1483,7 @@ else:
 
                 elif message["role"] == "assistant":
 
-                    st.markdown(strip_bold(message["content"]))
+                    st.markdown(message["content"])
 
                 else:
 
@@ -1663,7 +1625,7 @@ else:
 
                         answer = answer_question(question)
 
-                    st.markdown(strip_bold(answer))
+                    st.markdown(answer)
 
                 st.session_state.messages.append(
                     {"role": "assistant", "content": answer}
