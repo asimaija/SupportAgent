@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agents.support_agent import answer_question
 from agents.complaint_detector import is_complaint
+from agents.complaint_classifier import classify_complaint
 
 from data.complaints import (
     register_complaint,
@@ -33,7 +34,9 @@ st.set_page_config(
 )
 
 
-
+# =========================================================
+# COLORS  ("Signal Blue" theme — light, professional, B2B-tech)
+# =========================================================
 
 BG = "#F6F5FC"           # soft violet-white page background
 SIDEBAR = "#FFFFFF"
@@ -55,9 +58,16 @@ YELLOW = "#D97706"
 RED = "#DC2626"
 
 
-
+# =========================================================
+# LOGO
+# =========================================================
 
 LOGO_PATH = Path(__file__).resolve().parent / "images" / "logo.png"
+
+# Small square crop of just the icon mark (no wordmark text) — this is
+# what goes in tight spots like the header and sidebar, where the full
+# wide logo.png gets squeezed into an illegible smudge. Falls back to
+# the full logo if this hasn't been generated yet.
 LOGO_MARK_PATH = Path(__file__).resolve().parent / "images" / "logo_mark.png"
 
 
@@ -65,7 +75,9 @@ LOGO_MARK_PATH = Path(__file__).resolve().parent / "images" / "logo_mark.png"
 # HTML HELPER
 # =========================================================
 
-def build_complaint_card_html(complaint_id, complaint_text, status, customer_name):
+def build_complaint_card_html(
+    complaint_id, complaint_text, status, customer_name, department=None
+):
     """
     Returns the HTML string for the "complaint registered" confirmation
     card shown in chat right after a complaint is filed.
@@ -76,6 +88,17 @@ def build_complaint_card_html(complaint_id, complaint_text, status, customer_nam
     if len(preview) > 220:
 
         preview = preview[:220].rstrip() + "…"
+
+    department_row = ""
+
+    if department:
+
+        department_row = f"""
+        <div class="complaint-confirm-row">
+            <span class="complaint-confirm-label">Routed to</span>
+            <span class="complaint-confirm-value">{department}</span>
+        </div>
+        """
 
     return f"""
     <div class="complaint-confirm-card">
@@ -90,6 +113,7 @@ def build_complaint_card_html(complaint_id, complaint_text, status, customer_nam
             <span class="complaint-confirm-label">Submitted by</span>
             <span class="complaint-confirm-value">{customer_name}</span>
         </div>
+        {department_row}
         <div class="complaint-confirm-row">
             <span class="complaint-confirm-label">Status</span>
             <span class="complaint-confirm-value">{status}</span>
@@ -879,7 +903,10 @@ defaults = {
 
     "admin_id_token": "",
 
-    
+    # Which top-level landing menu the visitor picked:
+    # None -> show the Customer / Admin chooser
+    # "customer" -> show Login / Register
+    # "admin" -> show admin email/password form
     "account_view": None
 }
 
@@ -1531,11 +1558,18 @@ else:
 
                 try:
 
+                    # "Classify Complaint" + "Select Department" from
+                    # the architecture diagram — runs on the details
+                    # the customer just typed, before it's saved.
+                    category, department = classify_complaint(question)
+
                     complaint_id = register_complaint(
                         st.session_state.customer_name,
                         question,
                         st.session_state.customer_email,
-                        st.session_state.customer_user_id
+                        st.session_state.customer_user_id,
+                        category=category,
+                        department=department
                     )
 
                     st.session_state.waiting_for_complaint = False
@@ -1545,7 +1579,8 @@ else:
                         complaint_id,
                         question,
                         "Pending",
-                        st.session_state.customer_name
+                        st.session_state.customer_name,
+                        department=department
                     )
 
                     with st.chat_message("assistant"):
@@ -1676,7 +1711,10 @@ else:
 
                 try:
 
-                    
+                    # Scoped to this customer's own complaints only —
+                    # never looks up any complaint ID directly, so a
+                    # customer can't view someone else's complaint by
+                    # guessing or typing in a different ID.
                     complaints = get_customer_complaints(
                         st.session_state.customer_user_id
                     )
@@ -1708,6 +1746,7 @@ else:
                     complaint_id = match.get("complaint_id", "")
                     complaint_text = match.get("complaint", "")
                     status = match.get("status", "Pending")
+                    department = match.get("department", "General Support")
 
                     if status == "Resolved":
 
@@ -1730,6 +1769,12 @@ else:
                             </div>
                             <div class="complaint-description">
                                 {complaint_text}
+                            </div>
+                            <div class="complaint-status">
+                                Routed to:
+                                <span style="color:{TEXT}; font-weight:600;">
+                                    {department}
+                                </span>
                             </div>
                             <div class="complaint-status">
                                 Status:

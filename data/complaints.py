@@ -16,10 +16,18 @@ def register_complaint(
     name,
     complaint,
     email,
-    user_id
+    user_id,
+    category=None,
+    department=None
 ):
     """
     Register a customer complaint in Firebase Firestore.
+
+    category / department come from
+    agents/complaint_classifier.classify_complaint() — passed in here
+    rather than computed inside this function, so this module stays
+    a pure data-access layer (Firestore in, Firestore out) and
+    doesn't need to know classification exists.
 
     Returns:
         Complaint ID
@@ -71,6 +79,10 @@ def register_complaint(
         "user_id": user_id,
 
         "complaint": complaint.strip(),
+
+        "category": category or "General",
+
+        "department": department or "General Support",
 
         "status": "Pending",
 
@@ -130,6 +142,12 @@ def get_customer_complaints(user_id):
         if not data.get("status"):
             data["status"] = "Pending"
 
+        if not data.get("category"):
+            data["category"] = "General"
+
+        if not data.get("department"):
+            data["department"] = "General Support"
+
         complaints.append(data)
 
     # -----------------------------------------------------
@@ -175,6 +193,12 @@ def get_complaint(complaint_id):
 
     if not data.get("status"):
         data["status"] = "Pending"
+
+    if not data.get("category"):
+        data["category"] = "General"
+
+    if not data.get("department"):
+        data["department"] = "General Support"
 
     return data
 
@@ -271,6 +295,12 @@ def get_all_complaints():
 
         if not data.get("status"):
             data["status"] = "Pending"
+
+        if not data.get("category"):
+            data["category"] = "General"
+
+        if not data.get("department"):
+            data["department"] = "General Support"
 
         complaints.append(data)
 
